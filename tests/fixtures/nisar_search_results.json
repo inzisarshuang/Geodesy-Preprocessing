@@ -1,0 +1,71 @@
+[
+  {
+    "type": "Feature",
+    "geometry": {
+      "type": "Polygon",
+      "coordinates": [[[-4.0, 39.0], [-2.0, 39.0], [-2.0, 41.0], [-4.0, 41.0], [-4.0, 39.0]]]
+    },
+    "properties": {
+      "sceneName": "NISAR_L1_PR_RSLC_20260203T102030_087_023",
+      "fileID": "NISAR_L1_PR_RSLC_20260203T102030_087_023",
+      "fileName": "NISAR_20260203_087_023.h5",
+      "processingLevel": "RSLC",
+      "startTime": "2026-02-03T10:20:30Z",
+      "stopTime": "2026-02-03T10:21:02Z",
+      "pathNumber": 87,
+      "frameNumber": 23,
+      "flightDirection": "descending",
+      "bytes": {"NISAR_20260203_087_023.h5": {"bytes": 2400000000, "format": "HDF5"}},
+      "url": "https://example.test/NISAR_20260203_087_023.h5",
+      "mainBandPolarization": ["HH", "HV"],
+      "sideBandPolarization": null,
+      "md5sum": "cccc"
+    }
+  },
+  {
+    "type": "Feature",
+    "geometry": {
+      "type": "Polygon",
+      "coordinates": [[[-4.5, 38.5], [-2.5, 38.5], [-2.5, 40.5], [-4.5, 40.5], [-4.5, 38.5]]]
+    },
+    "properties": {
+      "sceneName": "NISAR_L1_PR_RSLC_20260105T102030_087_022",
+      "fileID": "NISAR_L1_PR_RSLC_20260105T102030_087_022",
+      "fileName": "NISAR_20260105_087_022.h5",
+      "processingLevel": "RSLC",
+      "startTime": "2026-01-05T10:20:30+00:00",
+      "stopTime": "2026-01-05T10:21:02+00:00",
+      "pathNumber": "87",
+      "frameNumber": "22",
+      "flightDirection": "DESCENDING",
+      "bytes": {"NISAR_20260105_087_022.h5": {"bytes": "2200000000", "format": "HDF5"}},
+      "url": "https://example.test/NISAR_20260105_087_022.h5",
+      "mainBandPolarization": ["HH", "HV"],
+      "sideBandPolarization": ["HH"],
+      "md5sum": null
+    }
+  },
+  {
+    "type": "Feature",
+    "geometry": {
+      "type": "MultiPolygon",
+      "coordinates": [[[[-1.0, 40.0], [0.0, 40.0], [0.0, 41.0], [-1.0, 41.0], [-1.0, 40.0]]]]
+    },
+    "properties": {
+      "sceneName": "NISAR_L1_PR_RSLC_20260105T091500_042_006",
+      "fileID": "NISAR_L1_PR_RSLC_20260105T091500_042_006",
+      "fileName": "NISAR_20260105_042_006.h5",
+      "processingLevel": "RSLC",
+      "startTime": "2026-01-05T09:15:00Z",
+      "stopTime": "2026-01-05T09:15:32Z",
+      "pathNumber": 42,
+      "frameNumber": 6,
+      "flightDirection": "ASCENDING",
+      "bytes": {"NISAR_20260105_042_006.h5": {"bytes": 1800000000, "format": "HDF5"}},
+      "url": "https://example.test/NISAR_20260105_042_006.h5",
+      "mainBandPolarization": ["VV"],
+      "sideBandPolarization": null,
+      "md5sum": null
+    }
+  }
+]

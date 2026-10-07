@@ -1,0 +1,58 @@
+[
+  {
+    "type": "Feature",
+    "geometry": {"type": "Polygon", "coordinates": [[[-5, 38], [-1, 38], [-1, 42], [-5, 42], [-5, 38]]]},
+    "properties": {
+      "sceneName": "S1A_IW_SLC__20260908T060000_154",
+      "processingLevel": "SLC",
+      "startTime": "2026-09-08T06:00:00Z",
+      "stopTime": "2026-09-08T06:00:25Z",
+      "pathNumber": 154,
+      "orbit": 65001,
+      "flightDirection": "DESCENDING",
+      "beamModeType": "IW",
+      "polarization": "VV+VH",
+      "fileName": "S1A_IW_SLC__20260908T060000_154.zip",
+      "bytes": 4200000000,
+      "url": "https://example.test/S1A_IW_SLC__20260908T060000_154.zip"
+    }
+  },
+  {
+    "type": "Feature",
+    "geometry": {"type": "Polygon", "coordinates": [[[-4, 39], [-2, 39], [-2, 41], [-4, 41], [-4, 39]]]},
+    "properties": {
+      "sceneName": "S1_154_IW2_20260908T060005_VV_BURST_7",
+      "processingLevel": "BURST",
+      "startTime": "2026-09-08T06:00:05Z",
+      "stopTime": "2026-09-08T06:00:08Z",
+      "pathNumber": 154,
+      "orbit": 65001,
+      "flightDirection": "DESCENDING",
+      "beamModeType": "IW",
+      "polarization": "VV",
+      "fileName": "S1_154_IW2_20260908T060005_VV_BURST_7.tiff",
+      "bytes": 120000000,
+      "url": "https://example.test/S1_154_IW2_20260908T060005_VV_BURST_7.tiff",
+      "groupID": "S1A_154_20260908",
+      "burst": {"subswath": "IW2", "burstIndex": 7, "relativeBurstID": 391, "fullBurstID": "154_IW2_391"}
+    }
+  },
+  {
+    "type": "Feature",
+    "geometry": {"type": "Polygon", "coordinates": [[[-5, 38], [-1, 38], [-1, 42], [-5, 42], [-5, 38]]]},
+    "properties": {
+      "sceneName": "S1A_IW_GRDH_20260909T060000_154",
+      "processingLevel": "GRD_HD",
+      "startTime": "2026-09-09T06:00:00Z",
+      "stopTime": "2026-09-09T06:00:25Z",
+      "pathNumber": 154,
+      "orbit": 65002,
+      "flightDirection": "DESCENDING",
+      "beamModeType": "IW",
+      "polarization": ["VV", "VH"],
+      "fileName": "S1A_IW_GRDH_20260909T060000_154.zip",
+      "bytes": 900000000,
+      "url": "https://example.test/S1A_IW_GRDH_20260909T060000_154.zip"
+    }
+  }
+]
