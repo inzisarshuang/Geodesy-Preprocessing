@@ -19,11 +19,35 @@ class PreprocessingCaseLayoutTests(unittest.TestCase):
 
             self.assertEqual(layout.case_id, "S1/ASCENDING_128")
             self.assertEqual(layout.case_root, project / "S1/ASCENDING_128")
+            self.assertEqual(layout.config_root, project / "S1/ASCENDING_128/config")
+            self.assertEqual(
+                layout.config("preprocessing"),
+                project / "S1/ASCENDING_128/config/preprocessing",
+            )
+            self.assertEqual(layout.pre_root, project / "S1/ASCENDING_128/PRE")
+            self.assertEqual(
+                layout.acquisition_manifest,
+                project / "S1/ASCENDING_128/PRE/acquisition_manifest.json",
+            )
+            self.assertEqual(layout.analysis_root, project / "S1/ASCENDING_128/ANALYSIS")
+            self.assertEqual(
+                layout.visualization_root,
+                project / "S1/ASCENDING_128/VISUALIZATION",
+            )
             self.assertEqual(layout.product("SLC"), project / "S1/ASCENDING_128/PRE/GAMMA/SLC")
             self.assertEqual(layout.product("GEOMETRY"), project / "S1/ASCENDING_128/PRE/GAMMA/GEOMETRY")
             self.assertEqual(layout.product("RSLC"), project / "S1/ASCENDING_128/PRE/GAMMA/RSLC")
             self.assertEqual(layout.product("RSLC_SUBSET"), project / "S1/ASCENDING_128/PRE/GAMMA/RSLC_SUBSET")
             self.assertEqual(layout.log_root, project / "S1/ASCENDING_128/LOG/PRE/GAMMA")
+
+    def test_rejects_unknown_case_config_stage(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            project = Path(directory) / "project"
+            project.mkdir()
+            layout = PreprocessingCaseLayout.bind(project, "S1/ASCENDING_128")
+
+            with self.assertRaisesRegex(ValueError, "unknown case config stage"):
+                layout.config("temporary")
 
     def test_requires_two_component_project_relative_case_id(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

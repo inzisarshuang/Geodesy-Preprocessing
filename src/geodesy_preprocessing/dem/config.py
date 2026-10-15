@@ -19,6 +19,8 @@ from pathlib import Path
 ALLOWED_CONFIG_KEYS = frozenset(
     {
         "input_mode",
+        "project_root",
+        "topography_dataset_id",
         "kml_file",
         "kml_placemark",
         "west",

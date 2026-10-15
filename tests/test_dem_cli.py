@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import io
+import json
 import os
 import tempfile
 import unittest
@@ -263,6 +264,95 @@ class DemCliTests(unittest.TestCase):
         download.assert_not_called()
         convert.assert_not_called()
         self.assertIn("完整，跳过转换", self.stdout.getvalue())
+
+    def test_dataset_first_workflow_writes_topography_manifests(self) -> None:
+        project = self.root / "project"
+        project.mkdir()
+        self.write_cfg(
+            project_root=project,
+            topography_dataset_id="jishishan_cop30",
+            run_srtm2dem="true",
+            write_metadata="true",
+            api_key="secret-value",
+        )
+        cfg = {
+            line.split("=", 1)[0].strip(): line.split("=", 1)[1].strip()
+            for line in self.cfg.read_text(encoding="utf-8").splitlines()
+            if "=" in line
+        }
+
+        def fake_download(**kwargs: object) -> Path:
+            path = Path(kwargs["output_path"])
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_bytes(b"TIFF-source")
+            return path
+
+        def fake_convert(**kwargs: object) -> dict[str, object]:
+            dem = Path(kwargs["output_dem"])
+            par = Path(kwargs["output_par"])
+            log = Path(kwargs["log_path"])
+            dem.parent.mkdir(parents=True, exist_ok=True)
+            dem.write_bytes(b"gamma-dem")
+            par.write_text("data_format: REAL*4\nwidth: 1\nnlines: 1\n", encoding="ascii")
+            log.write_text("complete\n", encoding="utf-8")
+            return {"status": "complete", "data_format": "REAL*4"}
+
+        with (
+            patch("geodesy_preprocessing.dem.cli.download_dem", side_effect=fake_download),
+            patch(
+                "geodesy_preprocessing.dem.cli.convert_with_srtm2dem",
+                side_effect=fake_convert,
+            ),
+            patch(
+                "geodesy_preprocessing.dem.acquisition.opentopography.validate_geotiff",
+                return_value={"crs": "EPSG:4326"},
+            ),
+        ):
+            result = run_from_config(cfg, config_path=self.cfg)
+
+        dataset = project / "TOPOGRAPHY/jishishan_cop30"
+        self.assertEqual(result, dataset / "SOURCE/jishishan_cop30.tif")
+        for expected in (
+            dataset / "SOURCE/download_manifest.json",
+            dataset / "GAMMA/conversion_manifest.json",
+            dataset / "topography_manifest.json",
+            project / "TOPOGRAPHY/catalog.json",
+        ):
+            self.assertTrue(expected.is_file(), expected)
+
+        manifest = json.loads(
+            (dataset / "topography_manifest.json").read_text(encoding="utf-8")
+        )
+        self.assertEqual(manifest["dataset_id"], "jishishan_cop30")
+        self.assertEqual(
+            manifest["source"]["raster"],
+            "SOURCE/jishishan_cop30.tif",
+        )
+        self.assertEqual(
+            manifest["gamma"]["dem"],
+            "GAMMA/jishishan_cop30.dem",
+        )
+        catalog = json.loads(
+            (project / "TOPOGRAPHY/catalog.json").read_text(encoding="utf-8")
+        )
+        self.assertEqual(catalog["datasets"][0]["dataset_id"], "jishishan_cop30")
+
+    def test_dataset_first_workflow_requires_manifests_before_download(self) -> None:
+        project = self.root / "project"
+        project.mkdir()
+        self.write_cfg(
+            project_root=project,
+            topography_dataset_id="jishishan_cop30",
+            write_metadata="false",
+            api_key="secret-value",
+        )
+
+        with patch("geodesy_preprocessing.dem.cli.download_dem") as download:
+            code = self.invoke(["-c", str(self.cfg)])
+
+        self.assertEqual(code, 1)
+        download.assert_not_called()
+        self.assertIn("requires write_metadata=true", self.stderr.getvalue())
 
 
 if __name__ == "__main__":

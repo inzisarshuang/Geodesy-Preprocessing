@@ -178,7 +178,7 @@ CFG 属于具体研究区，应复制到项目目录后修改，不直接修改�
 
 ```bash
 PROJECT=/path/to/research_project
-mkdir -p "$PROJECT/config/preprocessing" "$PROJECT/INPUT" "$PROJECT/WORK" "$PROJECT/LOG/PRE"
+mkdir -p "$PROJECT/config/preprocessing" "$PROJECT/TOPOGRAPHY"
 cp config_examples/opentopo_dem_download.cfg "$PROJECT/config/preprocessing/"
 ```
 
@@ -214,10 +214,19 @@ geodesy-pre-sar-sentinel1-acquire \
 
 ```text
 RESEARCH_PROJECT/
-├── config/preprocessing/       # 本研究区填写后的 CFG
-├── INPUT/                      # KML、DEM 和只读任务产品
-├── WORK/                       # SLC、参考几何、RSLC/GSLC 和裁剪结果
-└── LOG/PRE/                    # Workflow 运行日志
+├── config/preprocessing/               # 项目级下载与地形 CFG
+├── TOPOGRAPHY/
+│   ├── catalog.json
+│   └── <dataset_id>/{SOURCE,GAMMA}/    # 可被多个轨道复用的 DEM 数据集
+└── S1/
+    ├── QUERY/
+    ├── DOWNLOAD/ascending/Orbit_128/
+    └── ASCENDING_128/
+        ├── config/{preprocessing,analysis,visualization}/
+        ├── PRE/GAMMA/{SLC,GEOMETRY,RSLC,RSLC_SUBSET}/
+        ├── ANALYSIS/GAMMA/              # 由 Geodesy-Analysis 管理
+        ├── VISUALIZATION/GAMMA/         # 由绘图仓库管理
+        └── LOG/PRE/GAMMA/
 ```
 
 代码仓库只保存通用实现和空白模板。研究区 KML、填写后的 CFG、下载产品、中间结果和

@@ -142,6 +142,11 @@ acquisition/nisar
 `case_root` 的旧 CFG 暂时保持兼容，但不应作为新项目模板。直接运行显示统一进度；
 Workflow 将完整输出写入 `<case>/LOG/PRE/GAMMA/`。
 
+公共地形不放进某一个 SAR case，也不再写入旧 `INPUT/DEM` 或 `WORK/GAMMA/DEM`。
+每套 DEM 使用 `TOPOGRAPHY/<dataset_id>/SOURCE` 保存来源栅格和下载清单，使用
+`TOPOGRAPHY/<dataset_id>/GAMMA` 保存转换结果和转换清单，并由
+`TOPOGRAPHY/catalog.json` 登记。同一数据集可以被多个轨道 case 引用。
+
 Git 记录代码演进；项目 LOG 记录某次数据处理。二者用途不同，不能相互替代。
 
 ## Sentinel-1 获取与 GAMMA 的交界

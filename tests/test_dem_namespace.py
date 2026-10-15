@@ -56,10 +56,10 @@ class DemNamespaceTests(unittest.TestCase):
         acquisition_values = load_config(acquisition_template)
         validate_config_keys(acquisition_values, ALLOWED_CONFIG_KEYS, acquisition_template)
         self.assertEqual(acquisition_values["run_srtm2dem"], "true")
-        self.assertEqual(
-            acquisition_values["srtm2dem_output_dir"],
-            "../../WORK/GAMMA/DEM",
-        )
+        self.assertEqual(acquisition_values["project_root"], "../..")
+        self.assertEqual(acquisition_values["topography_dataset_id"], "area_cop30")
+        self.assertNotIn("output_dir", acquisition_values)
+        self.assertNotIn("srtm2dem_output_dir", acquisition_values)
         self.assertNotIn("api_key", acquisition_values)
 
 

@@ -31,6 +31,8 @@ from .extent import (
     estimate_bbox_area_km2,
     expand_bbox_km,
 )
+from .layout import TopographyDatasetLayout
+from .manifests import write_dataset_manifests
 from .acquisition.opentopography import (
     DEFAULT_API_URL,
     KNOWN_30M_DATASETS,
@@ -59,6 +61,23 @@ def run_from_config(
     base_dir = config_path.parent
     validate_config_keys(cfg, ALLOWED_CONFIG_KEYS, config_path)
 
+    project_root_value = cfg_str(cfg, "project_root")
+    dataset_id = cfg_str(cfg, "topography_dataset_id")
+    if bool(project_root_value) != bool(dataset_id):
+        raise ValueError(
+            "project_root and topography_dataset_id must be configured together"
+        )
+    topography_layout = (
+        TopographyDatasetLayout.bind(
+            resolve_path(project_root_value, base_dir), dataset_id
+        )
+        if dataset_id
+        else None
+    )
+    write_metadata_enabled = cfg_bool(cfg, "write_metadata", True)
+    if topography_layout is not None and not write_metadata_enabled:
+        raise ValueError("dataset-first topography requires write_metadata=true")
+
     input_mode = cfg_str(cfg, "input_mode", "kml").lower()
     kml_placemark: str | None = None
     if input_mode == "kml":
@@ -83,9 +102,19 @@ def run_from_config(
     output_format = cfg_str(cfg, "output_format", "GTiff")
     if output_format not in OFFICIAL_OUTPUT_FORMATS:
         raise ValueError(f"output_format must be one of {sorted(OFFICIAL_OUTPUT_FORMATS)}")
+    if topography_layout is not None and output_format != "GTiff":
+        raise ValueError("dataset-first topography requires output_format=GTiff")
 
-    output_dir = resolve_path(cfg_str(cfg, "output_dir", "."), base_dir)
-    output_name = cfg_str(cfg, "output_name", "DEM.tif")
+    output_dir = (
+        topography_layout.source_dir
+        if topography_layout is not None
+        else resolve_path(cfg_str(cfg, "output_dir", "."), base_dir)
+    )
+    output_name = (
+        topography_layout.source_raster.name
+        if topography_layout is not None
+        else cfg_str(cfg, "output_name", "DEM.tif")
+    )
     if not output_name:
         raise ValueError("output_name cannot be empty")
     output_path = output_dir / output_name
@@ -95,19 +124,35 @@ def run_from_config(
     source_vertical_datum = cfg_str(cfg, "source_vertical_datum", "unspecified")
     run_gamma = cfg_bool(cfg, "run_srtm2dem", False)
     gamma_command = cfg_str(cfg, "srtm2dem_command", "srtm2dem")
-    gamma_dem_name = cfg_str(cfg, "srtm2dem_dem_name", "srtm.dem")
-    gamma_par_name = cfg_str(cfg, "srtm2dem_par_name", "srtm.dem.par")
+    gamma_dem_name = (
+        topography_layout.gamma_dem.name
+        if topography_layout is not None
+        else cfg_str(cfg, "srtm2dem_dem_name", "srtm.dem")
+    )
+    gamma_par_name = (
+        topography_layout.gamma_par.name
+        if topography_layout is not None
+        else cfg_str(cfg, "srtm2dem_par_name", "srtm.dem.par")
+    )
     if not gamma_dem_name or not gamma_par_name:
         raise ValueError("srtm2dem output names cannot be empty")
     gamma_output_value = cfg_str(cfg, "srtm2dem_output_dir")
     gamma_output_dir = (
-        resolve_path(gamma_output_value, base_dir)
-        if gamma_output_value
-        else output_dir
+        topography_layout.gamma_dir
+        if topography_layout is not None
+        else (
+            resolve_path(gamma_output_value, base_dir)
+            if gamma_output_value
+            else output_dir
+        )
     )
     gamma_dem_path = gamma_output_dir / gamma_dem_name
     gamma_par_path = gamma_output_dir / gamma_par_name
-    gamma_log_name = cfg_str(cfg, "srtm2dem_log_name", "srtm2dem.log")
+    gamma_log_name = (
+        topography_layout.conversion_log.name
+        if topography_layout is not None
+        else cfg_str(cfg, "srtm2dem_log_name", "srtm2dem.log")
+    )
     gamma_log_path = gamma_output_dir / gamma_log_name if gamma_log_name else None
     gamma_geoid_flag = int(cfg_int(cfg, "srtm2dem_geoid_correction_flag", 0) or 0)
     gamma_geoid_value = cfg_str(cfg, "srtm2dem_geoid_file")
@@ -142,6 +187,8 @@ def run_from_config(
     )
     print(f"[DEM] 估算面积: {estimated_area_km2:,.2f} km²")
     print(f"[DEM] 数据集: {dem_type}")
+    if topography_layout is not None:
+        print(f"[DEM] 地形数据集目录: {topography_layout.root}")
     print(f"[DEM] GeoTIFF: {output_path}")
     print(f"[DEM] 运行 srtm2dem: {run_gamma}")
     if run_gamma:
@@ -224,8 +271,12 @@ def run_from_config(
         print(f"[DEM] GAMMA DEM: {gamma_dem_path}")
         print(f"[DEM] GAMMA 参数: {gamma_par_path}")
 
-    if cfg_bool(cfg, "write_metadata", True):
-        metadata_name = cfg_str(cfg, "metadata_name", f"{output.name}.json")
+    if write_metadata_enabled:
+        metadata_name = (
+            topography_layout.download_manifest.name
+            if topography_layout is not None
+            else cfg_str(cfg, "metadata_name", f"{output.name}.json")
+        )
         write_metadata(
             output_dir / metadata_name,
             config_path=config_path,
@@ -244,6 +295,12 @@ def run_from_config(
             source_vertical_datum=source_vertical_datum,
             gamma_dem=gamma_metadata,
         )
+        if topography_layout is not None:
+            write_dataset_manifests(
+                topography_layout,
+                dem_type=dem_type,
+                gamma_metadata=gamma_metadata,
+            )
     return output
 
 

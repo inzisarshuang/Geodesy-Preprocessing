@@ -21,6 +21,7 @@ from .paths import validate_within_root
 
 _COMPONENT = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.-]*\Z")
 _PRODUCTS = frozenset({"SLC", "GEOMETRY", "RSLC", "RSLC_SUBSET"})
+_CONFIG_STAGES = frozenset({"preprocessing", "analysis", "visualization"})
 
 
 @dataclass(frozen=True)
@@ -56,6 +57,45 @@ class PreprocessingCaseLayout:
 
         return resolve_case_log_path(self.case_root)
 
+    @property
+    def config_root(self) -> Path:
+        """Return the case-local configuration root."""
+
+        return self.case_root / "config"
+
+    def config(self, stage: str) -> Path:
+        """Return one standard case-local configuration stage directory."""
+
+        normalized = stage.strip().lower()
+        if normalized not in _CONFIG_STAGES:
+            allowed = ", ".join(sorted(_CONFIG_STAGES))
+            raise ValueError(f"unknown case config stage {stage!r}; expected {allowed}")
+        return self.config_root / normalized
+
+    @property
+    def pre_root(self) -> Path:
+        """Return the preprocessing result root owned by this package."""
+
+        return self.case_root / "PRE"
+
+    @property
+    def acquisition_manifest(self) -> Path:
+        """Return the case acquisition manifest path."""
+
+        return self.pre_root / "acquisition_manifest.json"
+
+    @property
+    def analysis_root(self) -> Path:
+        """Return the shared project contract path for downstream analysis."""
+
+        return self.case_root / "ANALYSIS"
+
+    @property
+    def visualization_root(self) -> Path:
+        """Return the shared project contract path for downstream visualization."""
+
+        return self.case_root / "VISUALIZATION"
+
     def product(self, name: str) -> Path:
         """Return one canonical case-local GAMMA preprocessing product path."""
 
@@ -63,7 +103,7 @@ class PreprocessingCaseLayout:
         if normalized not in _PRODUCTS:
             allowed = ", ".join(sorted(_PRODUCTS))
             raise ValueError(f"unknown preprocessing product {name!r}; expected {allowed}")
-        return self.case_root / "PRE/GAMMA" / normalized
+        return self.pre_root / "GAMMA" / normalized
 
     def require_product(self, path: str | Path, product: str, label: str) -> Path:
         """Require ``path`` to equal the canonical path for ``product``."""
