@@ -47,6 +47,7 @@ class DemCliTests(unittest.TestCase):
             "write_metadata": "false",
             "overwrite": "false",
             "run_srtm2dem": "false",
+            "srtm2dem_output_dir": "output",
             "srtm2dem_dem_name": "srtm.dem",
             "srtm2dem_par_name": "srtm.dem.par",
             "srtm2dem_log_name": "srtm2dem.log",
@@ -198,6 +199,70 @@ class DemCliTests(unittest.TestCase):
             result = run_from_config(cfg, config_path=self.cfg)
         self.assertEqual(result, self.root / "output/dem.tif")
         self.assertEqual(convert.call_args.kwargs["input_geotiff"], result)
+
+    def test_existing_geotiff_is_reused_for_gamma_conversion(self) -> None:
+        self.write_cfg(run_srtm2dem="true", srtm2dem_output_dir="gamma")
+        output = self.root / "output/dem.tif"
+        output.parent.mkdir()
+        output.write_bytes(b"existing-geotiff")
+        cfg = {
+            line.split("=", 1)[0].strip(): line.split("=", 1)[1].strip()
+            for line in self.cfg.read_text(encoding="utf-8").splitlines()
+            if "=" in line
+        }
+
+        with (
+            patch("geodesy_preprocessing.dem.cli.validate_geotiff", return_value={}),
+            patch("geodesy_preprocessing.dem.cli.resolve_api_key") as resolve_key,
+            patch("geodesy_preprocessing.dem.cli.download_dem") as download,
+            patch(
+                "geodesy_preprocessing.dem.cli.convert_with_srtm2dem",
+                return_value={"status": "complete"},
+            ) as convert,
+        ):
+            result = run_from_config(cfg, config_path=self.cfg)
+
+        self.assertEqual(result, output)
+        resolve_key.assert_not_called()
+        download.assert_not_called()
+        self.assertEqual(
+            convert.call_args.kwargs["output_dem"],
+            self.root / "gamma/srtm.dem",
+        )
+
+    def test_complete_gamma_outputs_are_validated_and_skipped(self) -> None:
+        self.write_cfg(run_srtm2dem="true", srtm2dem_output_dir="gamma")
+        output = self.root / "output/dem.tif"
+        output.parent.mkdir()
+        output.write_bytes(b"existing-geotiff")
+        gamma = self.root / "gamma"
+        gamma.mkdir()
+        (gamma / "srtm.dem").write_bytes(b"\0" * 24)
+        (gamma / "srtm.dem.par").write_text(
+            "data_format: REAL*4\nwidth: 3\nnlines: 2\n",
+            encoding="ascii",
+        )
+        (gamma / "srtm2dem.log").write_text("complete", encoding="utf-8")
+        cfg = {
+            line.split("=", 1)[0].strip(): line.split("=", 1)[1].strip()
+            for line in self.cfg.read_text(encoding="utf-8").splitlines()
+            if "=" in line
+        }
+
+        with (
+            patch("geodesy_preprocessing.dem.cli.validate_geotiff", return_value={}),
+            patch("geodesy_preprocessing.dem.cli.resolve_api_key") as resolve_key,
+            patch("geodesy_preprocessing.dem.cli.download_dem") as download,
+            patch("geodesy_preprocessing.dem.cli.convert_with_srtm2dem") as convert,
+            redirect_stdout(self.stdout),
+        ):
+            result = run_from_config(cfg, config_path=self.cfg)
+
+        self.assertEqual(result, output)
+        resolve_key.assert_not_called()
+        download.assert_not_called()
+        convert.assert_not_called()
+        self.assertIn("完整，跳过转换", self.stdout.getvalue())
 
 
 if __name__ == "__main__":

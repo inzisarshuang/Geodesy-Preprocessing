@@ -45,6 +45,7 @@ ALLOWED_CONFIG_KEYS = frozenset(
         "source_vertical_datum",
         "run_srtm2dem",
         "srtm2dem_command",
+        "srtm2dem_output_dir",
         "srtm2dem_dem_name",
         "srtm2dem_par_name",
         "srtm2dem_log_name",
@@ -163,4 +164,3 @@ __all__ = [
     "resolve_path",
     "validate_config_keys",
 ]
-

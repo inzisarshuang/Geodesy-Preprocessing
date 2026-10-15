@@ -1,15 +1,16 @@
 # DEM 流程
 
-公共 DEM 不属于某颗 SAR 卫星，也不属于 GAMMA。同一研究区的 GeoTIFF 可以供多个
-轨道和后端使用；不同轨道仍应各自建立雷达参考几何。
+公共 DEM 不属于某颗 SAR 卫星。同一研究区的 GeoTIFF 可以供多个轨道和后端使用；
+`geodesy-pre-dem` 可以在下载后按配置继续生成 GAMMA DEM。不同轨道仍应各自建立
+雷达参考几何。
 
 ## 准备配置
 
-将 `config_examples/opentopo_dem_download.cfg` 和 `config_examples/gamma_dem_convert.cfg` 复制到
-项目的 `config/preprocessing/`。在下载 CFG 中设置 KML 或 bbox、缓冲距离、DEM 数据集
-与输出位置。API key 放在运行终端的 `OPENTOPO_API_KEY`，不要放进 CFG。
+只需将 `config_examples/opentopo_dem_download.cfg` 复制到项目的
+`config/preprocessing/`。在同一 CFG 中设置 KML 或 bbox、缓冲距离、下载位置和 GAMMA
+输出位置。API key 放在运行终端的 `OPENTOPO_API_KEY`，不要放进 CFG。
 
-## 下载公共 GeoTIFF
+## 下载并按需转换
 
 ```bash
 conda activate envInSAR
@@ -17,21 +18,15 @@ geodesy-pre-dem --config PROJECT/config/preprocessing/opentopo_dem_download.cfg 
 geodesy-pre-dem --config PROJECT/config/preprocessing/opentopo_dem_download.cfg
 ```
 
-完成时应同时得到 GeoTIFF 和来源 JSON；默认示例位置是 `PROJECT/INPUT/DEM/dem.tif`。
-下载失败不会发布半成品。
-
-## 转换为 GAMMA DEM
-
-只有 GAMMA 路线需要此阶段：
-
-```bash
-geodesy-pre-gamma-dem-convert --config PROJECT/config/preprocessing/gamma_dem_convert.cfg --dry-run
-geodesy-pre-gamma-dem-convert --config PROJECT/config/preprocessing/gamma_dem_convert.cfg
-```
-
-完成时应得到 `srtm.dem`、`srtm.dem.par` 和 `srtm2dem.log`。参数文件中的宽高与
+模板默认 `run_srtm2dem=true`，因此完成时应同时得到 GeoTIFF、来源 JSON、`srtm.dem`、
+`srtm.dem.par` 和 `srtm2dem.log`。只需要公共 GeoTIFF 时设置
+`run_srtm2dem=false`。参数文件中的宽高与
 `srtm.dem` 字节数必须一致。垂向基准由输入 DEM 和 `geoid_correction_flag` 决定，命令
 成功不等于基准设置一定正确。
+
+重复运行时，已有 GeoTIFF 会在校验后复用，不再读取 API key 或联网；完整 GAMMA
+结果也会校验后跳过。残缺 GAMMA 结果会停止并要求人工检查。旧项目原有的独立转换
+CFG 仍可由兼容命令读取，但新项目不再维护第二份模板。
 
 ## 日志与下一阶段
 

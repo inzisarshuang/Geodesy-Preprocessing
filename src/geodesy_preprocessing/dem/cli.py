@@ -40,9 +40,10 @@ from .acquisition.opentopography import (
     normalize_dem_type,
     resolve_api_key,
     validate_api_url,
+    validate_geotiff,
     write_metadata,
 )
-from .conversion.gamma.srtm2dem import convert_with_srtm2dem
+from .conversion.gamma.srtm2dem import convert_with_srtm2dem, validate_gamma_dem
 
 
 def run_from_config(
@@ -98,10 +99,16 @@ def run_from_config(
     gamma_par_name = cfg_str(cfg, "srtm2dem_par_name", "srtm.dem.par")
     if not gamma_dem_name or not gamma_par_name:
         raise ValueError("srtm2dem output names cannot be empty")
-    gamma_dem_path = output_dir / gamma_dem_name
-    gamma_par_path = output_dir / gamma_par_name
+    gamma_output_value = cfg_str(cfg, "srtm2dem_output_dir")
+    gamma_output_dir = (
+        resolve_path(gamma_output_value, base_dir)
+        if gamma_output_value
+        else output_dir
+    )
+    gamma_dem_path = gamma_output_dir / gamma_dem_name
+    gamma_par_path = gamma_output_dir / gamma_par_name
     gamma_log_name = cfg_str(cfg, "srtm2dem_log_name", "srtm2dem.log")
-    gamma_log_path = output_dir / gamma_log_name if gamma_log_name else None
+    gamma_log_path = gamma_output_dir / gamma_log_name if gamma_log_name else None
     gamma_geoid_flag = int(cfg_int(cfg, "srtm2dem_geoid_correction_flag", 0) or 0)
     gamma_geoid_value = cfg_str(cfg, "srtm2dem_geoid_file")
     gamma_geoid_path = resolve_path(gamma_geoid_value, base_dir) if gamma_geoid_value else None
@@ -153,52 +160,67 @@ def run_from_config(
             f"~{MAX_AREA_30M_KM2:,.0f} km² request limit for 30 m DEM products; "
             "split the AOI into smaller requests"
         )
+    gamma_metadata = None
     if run_gamma and not overwrite and not dry_run:
         destinations = [gamma_dem_path, gamma_par_path]
         if gamma_log_path is not None:
             destinations.append(gamma_log_path)
-        existing = [str(path) for path in destinations if path.exists()]
+        existing = [path for path in destinations if path.exists()]
         if existing:
-            raise FileExistsError(
-                "GAMMA output already exists; use --force to replace it: "
-                + ", ".join(existing)
-            )
+            if len(existing) != len(destinations):
+                raise RuntimeError(
+                    "incomplete GAMMA DEM output exists; inspect or use --force: "
+                    + ", ".join(str(path) for path in existing)
+                )
+            gamma_metadata = validate_gamma_dem(gamma_dem_path, gamma_par_path)
+            gamma_metadata["status"] = "skipped_complete"
     if dry_run:
         print("[DEM] dry-run 完成：没有读取 API 密钥，也没有发送网络请求。")
         return None
 
-    api_key, api_key_source = resolve_api_key(cfg)
-    print(f"[DEM] API 密钥来源: {api_key_source}")
-    output = download_dem(
-        api_url=api_url,
-        dem_type=dem_type,
-        bbox=request_bbox,
-        output_path=output_path,
-        api_key=api_key,
-        output_format=output_format,
-        timeout_connect_sec=timeout_connect,
-        timeout_read_sec=timeout_read,
-        retries=retries,
-        backoff_factor=backoff,
-        chunk_mb=chunk_mb,
-        overwrite=overwrite,
-        verify_tiff=verify_tiff,
-    )
-    print(f"[DEM] 下载完成: {output}")
-
-    gamma_metadata = None
-    if run_gamma:
-        gamma_metadata = convert_with_srtm2dem(
-            input_geotiff=output,
-            output_dem=gamma_dem_path,
-            output_par=gamma_par_path,
-            command=gamma_command,
-            geoid_correction_flag=gamma_geoid_flag,
-            geoid_path=gamma_geoid_path,
-            gdal_bin_dir=gamma_gdal_bin,
-            log_path=gamma_log_path,
+    if run_gamma and output_path.exists() and not overwrite:
+        if output_path.is_symlink() or not output_path.is_file():
+            raise ValueError(f"existing GeoTIFF must be a regular file: {output_path}")
+        if verify_tiff:
+            validate_geotiff(output_path, request_bbox)
+        output = output_path
+        api_key_source = "not_used_existing_geotiff"
+        print(f"[DEM] GeoTIFF 已存在且校验通过，跳过下载: {output}")
+    else:
+        api_key, api_key_source = resolve_api_key(cfg)
+        print(f"[DEM] API 密钥来源: {api_key_source}")
+        output = download_dem(
+            api_url=api_url,
+            dem_type=dem_type,
+            bbox=request_bbox,
+            output_path=output_path,
+            api_key=api_key,
+            output_format=output_format,
+            timeout_connect_sec=timeout_connect,
+            timeout_read_sec=timeout_read,
+            retries=retries,
+            backoff_factor=backoff,
+            chunk_mb=chunk_mb,
             overwrite=overwrite,
+            verify_tiff=verify_tiff,
         )
+        print(f"[DEM] 下载完成: {output}")
+
+    if run_gamma:
+        if gamma_metadata is None:
+            gamma_metadata = convert_with_srtm2dem(
+                input_geotiff=output,
+                output_dem=gamma_dem_path,
+                output_par=gamma_par_path,
+                command=gamma_command,
+                geoid_correction_flag=gamma_geoid_flag,
+                geoid_path=gamma_geoid_path,
+                gdal_bin_dir=gamma_gdal_bin,
+                log_path=gamma_log_path,
+                overwrite=overwrite,
+            )
+        else:
+            print("[DEM] GAMMA DEM 结果完整，跳过转换。")
         print(f"[DEM] GAMMA DEM: {gamma_dem_path}")
         print(f"[DEM] GAMMA 参数: {gamma_par_path}")
 

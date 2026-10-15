@@ -180,18 +180,21 @@ CFG 属于具体研究区，应复制到项目目录后修改，不直接修改�
 PROJECT=/path/to/research_project
 mkdir -p "$PROJECT/config/preprocessing" "$PROJECT/INPUT" "$PROJECT/WORK" "$PROJECT/LOG/PRE"
 cp config_examples/opentopo_dem_download.cfg "$PROJECT/config/preprocessing/"
-cp config_examples/gamma_dem_convert.cfg "$PROJECT/config/preprocessing/"
 ```
 
 再复制所选路线需要的 CFG。模板顶部给出正式命令和示例，参数块标明哪些内容必填、
 经常修改、通常不改或需要谨慎修改。
+
+OpenTopography 模板默认在下载后执行 GAMMA `srtm2dem`；只需要公共 GeoTIFF 时将
+`run_srtm2dem=false`。旧项目原有的独立转换 CFG 和命令仍可继续使用，但不再为新项目
+提供重复模板。
 
 ### 5.3 Run And Check Logs / 执行与检查日志
 
 所有下载和批处理都应先检查计划，再正式运行。例如：
 
 ```bash
-# DEM：先检查范围，再下载
+# DEM：先检查范围，再下载并按 CFG 决定是否转换为 GAMMA DEM
 geodesy-pre-dem --config "$PROJECT/config/preprocessing/opentopo_dem_download.cfg" --dry-run
 geodesy-pre-dem --config "$PROJECT/config/preprocessing/opentopo_dem_download.cfg"
 
