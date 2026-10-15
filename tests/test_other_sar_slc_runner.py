@@ -8,6 +8,7 @@ import os
 import sys
 import tempfile
 import unittest
+import dataclasses
 from pathlib import Path
 from types import MappingProxyType
 
@@ -150,6 +151,34 @@ class OtherSarSlcRunnerTests(unittest.TestCase):
             self.assertFalse(second.exists())
             summary = run_slc_batch(build_slc_plan(case), progress_sink=lambda line: None)
             self.assertEqual((summary.completed, summary.skipped), (1, 1))
+
+    def test_case_layout_writes_logs_below_case_root(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            project = Path(directory)
+            raw = project / "RAW"
+            raw.mkdir()
+            write_alos_zip(raw / "a.zip", date="20260922")
+            case_root = project / "ALOS2/MAIN"
+            case = dataclasses.replace(
+                self._case(
+                    project,
+                    "alos2",
+                    ("HH",),
+                    {"import_command": self._fake("alos")},
+                ),
+                slc_dir=case_root / "PRE/GAMMA/SLC",
+                images_file=case_root / "PRE/GAMMA/SLC/images_alos2",
+                case_root=case_root,
+            )
+
+            run_slc_batch(build_slc_plan(case), progress_sink=lambda line: None)
+
+            log = (
+                case_root
+                / "LOG/PRE/GAMMA/PRE_GAMMA_SAR_SLC/main/20260922/stdout.log"
+            )
+            self.assertTrue(log.is_file())
+            self.assertFalse((case_root / "PRE/GAMMA/LOG").exists())
 
     def test_zero_exit_with_missing_output_publishes_nothing(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

@@ -126,8 +126,21 @@ acquisition/nisar
 ## 项目与日志
 
 代码仓库只保存通用实现和空白模板。研究区 KML、已填写 CFG、账号引用、输入产品、
-运行结果和日志均保留在研究项目目录。直接运行显示统一进度；Workflow 将完整输出写入
-`项目/LOG/PRE/<后端>/<任务>/<运行时间>/`。
+运行结果和日志均保留在研究项目目录。正式 case 使用稳定的
+`<项目>/<传感器>/<CASE>` 根目录，例如 `S1/ASCENDING_128` 或
+`SAOCOM/GUIZHOU`。GAMMA 预处理的四类结果固定为：
+
+```text
+<case>/PRE/GAMMA/SLC
+<case>/PRE/GAMMA/GEOMETRY
+<case>/PRE/GAMMA/RSLC
+<case>/PRE/GAMMA/RSLC_SUBSET
+```
+
+新 CFG 在 `[case:*]` 中声明项目相对的 `case_root`。声明后，配置读取器会先解析
+符号链接，再拒绝旧 `WORK/GAMMA`、其他 case 或 case 外部的输出路径。未声明
+`case_root` 的旧 CFG 暂时保持兼容，但不应作为新项目模板。直接运行显示统一进度；
+Workflow 将完整输出写入 `<case>/LOG/PRE/GAMMA/`。
 
 Git 记录代码演进；项目 LOG 记录某次数据处理。二者用途不同，不能相互替代。
 

@@ -17,6 +17,8 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
+from geodesy_preprocessing.common.case_layout import optional_case_layout
+
 
 _CASE_NAME = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.-]*")
 _PROJECT_KEYS = {"root"}
@@ -27,7 +29,13 @@ _DEFAULT_KEYS = {
     "polarization",
     "workflow",
 }
-_CASE_KEYS = _DEFAULT_KEYS | {"raw_dir", "slc_dir", "images", "burst_table"}
+_CASE_KEYS = _DEFAULT_KEYS | {
+    "case_root",
+    "raw_dir",
+    "slc_dir",
+    "images",
+    "burst_table",
+}
 _REQUIRED_CASE_KEYS = {
     "raw_dir",
     "slc_dir",
@@ -55,6 +63,7 @@ class GammaTopsSlcCase:
     azimuth_looks: int
     polarization: str
     workflow_flag: int
+    case_root: Path | None = None
 
 
 SlcConfigCase = GammaTopsSlcCase
@@ -145,14 +154,27 @@ def load_slc_config(path: str | Path) -> tuple[SlcConfigCase, ...]:
                 f"{source}: [{section_name}] workflow must be safe/zip or 1/0"
             )
         opod_text = values["opod_dir"]
+        raw_dir = _resolve(project_root, values["raw_dir"])
+        slc_dir = _resolve(project_root, values["slc_dir"])
+        opod_dir = None if opod_text == "-" else _resolve(project_root, opod_text)
+        images_file = _resolve(project_root, values["images"])
+        burst_table = _resolve(project_root, values["burst_table"])
+        layout = optional_case_layout(project_root, values)
+        if layout is not None:
+            raw_dir = layout.require_project_input(raw_dir, "raw_dir")
+            slc_dir = layout.require_product(slc_dir, "SLC", "slc_dir")
+            if opod_dir is not None:
+                opod_dir = layout.require_project_input(opod_dir, "opod_dir")
+            images_file = layout.require_project_input(images_file, "images")
+            burst_table = layout.require_project_input(burst_table, "burst_table")
         cases.append(
             SlcConfigCase(
                 name=name,
-                raw_dir=_resolve(project_root, values["raw_dir"]),
-                slc_dir=_resolve(project_root, values["slc_dir"]),
-                opod_dir=None if opod_text == "-" else _resolve(project_root, opod_text),
-                images_file=_resolve(project_root, values["images"]),
-                burst_table=_resolve(project_root, values["burst_table"]),
+                raw_dir=raw_dir,
+                slc_dir=slc_dir,
+                opod_dir=opod_dir,
+                images_file=images_file,
+                burst_table=burst_table,
                 range_looks=_positive_integer(
                     values["range_looks"], "range_looks", source
                 ),
@@ -161,6 +183,7 @@ def load_slc_config(path: str | Path) -> tuple[SlcConfigCase, ...]:
                 ),
                 polarization=values["polarization"],
                 workflow_flag=workflow_values[workflow_text],
+                case_root=None if layout is None else layout.case_root,
             )
         )
     if not cases:

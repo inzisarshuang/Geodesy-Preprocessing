@@ -4,13 +4,18 @@
 为普通 GAMMA 雷达坐标 SLC 的其他任务产品。卫星差异停留在 SLC 适配器；SLC 之后
 共用 GAMMA 参考几何、RSLC 配准和裁剪实现。
 
+一个独立运行的研究对象使用一个 `<传感器>/<CASE>` 根目录，例如
+`SAOCOM/GUIZHOU`。新 CFG 必须声明 `case_root`，并把四个阶段输出固定为
+`<case>/PRE/GAMMA/{SLC,GEOMETRY,RSLC,RSLC_SUBSET}`；共享原始产品和地形数据仍从
+项目级目录只读引用。
+
 ## 生成 SLC
 
 在 `gamma_sar_slc.cfg` 中选择传感器适配器、原始产品目录、极化和输出位置：
 
 ```bash
-geodesy-pre-gamma-sar-slc --config PROJECT/config/preprocessing/gamma_sar_slc.cfg --case main --dry-run
-geodesy-pre-gamma-sar-slc --config PROJECT/config/preprocessing/gamma_sar_slc.cfg --case main
+geodesy-pre-gamma-sar-slc --config PROJECT/SAOCOM/GUIZHOU/config/preprocessing/gamma_sar_slc.cfg --case main --dry-run
+geodesy-pre-gamma-sar-slc --config PROJECT/SAOCOM/GUIZHOU/config/preprocessing/gamma_sar_slc.cfg --case main
 ```
 
 完成时 `slc_dir` 中应有每个日期/极化的复数 SLC 与参数文件，`images_file` 日期唯一且
@@ -21,8 +26,8 @@ geodesy-pre-gamma-sar-slc --config PROJECT/config/preprocessing/gamma_sar_slc.cf
 按[DEM 流程](dem.md)准备 GAMMA DEM，在 `gamma_sar_geo_ref.cfg` 中选择参考日期和主极化：
 
 ```bash
-geodesy-pre-gamma-sar-geo-ref --config PROJECT/config/preprocessing/gamma_sar_geo_ref.cfg --case main --dry-run
-geodesy-pre-gamma-sar-geo-ref --config PROJECT/config/preprocessing/gamma_sar_geo_ref.cfg --case main
+geodesy-pre-gamma-sar-geo-ref --config PROJECT/SAOCOM/GUIZHOU/config/preprocessing/gamma_sar_geo_ref.cfg --case main --dry-run
+geodesy-pre-gamma-sar-geo-ref --config PROJECT/SAOCOM/GUIZHOU/config/preprocessing/gamma_sar_geo_ref.cfg --case main
 ```
 
 完成标志是 `reference_geometry.json` 以及对应 lookup、雷达坐标高程和质量文件完整。
@@ -33,8 +38,8 @@ geodesy-pre-gamma-sar-geo-ref --config PROJECT/config/preprocessing/gamma_sar_ge
 分辨率明显变化或弱相关时，再结合质量日志调整窗口、估计点数和相关阈值。
 
 ```bash
-geodesy-pre-gamma-sar-coreg --config PROJECT/config/preprocessing/gamma_sar_coreg.cfg --case main --dry-run
-geodesy-pre-gamma-sar-coreg --config PROJECT/config/preprocessing/gamma_sar_coreg.cfg --case main
+geodesy-pre-gamma-sar-coreg --config PROJECT/SAOCOM/GUIZHOU/config/preprocessing/gamma_sar_coreg.cfg --case main --dry-run
+geodesy-pre-gamma-sar-coreg --config PROJECT/SAOCOM/GUIZHOU/config/preprocessing/gamma_sar_coreg.cfg --case main
 ```
 
 完成时 `registered_stack.json`、`quality.json` 和 `provenance.json` 必须可读，且日期×极化
@@ -43,10 +48,10 @@ geodesy-pre-gamma-sar-coreg --config PROJECT/config/preprocessing/gamma_sar_core
 ## 裁剪和交接
 
 ```bash
-geodesy-pre-gamma-sar-rslc-crop --config PROJECT/config/preprocessing/gamma_sar_rslc_crop.cfg --case main --plan-only
-geodesy-pre-gamma-sar-rslc-crop --config PROJECT/config/preprocessing/gamma_sar_rslc_crop.cfg --case main
+geodesy-pre-gamma-sar-rslc-crop --config PROJECT/SAOCOM/GUIZHOU/config/preprocessing/gamma_sar_rslc_crop.cfg --case main --plan-only
+geodesy-pre-gamma-sar-rslc-crop --config PROJECT/SAOCOM/GUIZHOU/config/preprocessing/gamma_sar_rslc_crop.cfg --case main
 ```
 
 先确认 KML 缓冲范围没有被缩减且 lookup 覆盖足够，再正式发布。最终
-`registered_stack.json` 是交给 `Geodesy-Analysis` 的入口。日志位于项目 `LOG/PRE/`
+`registered_stack.json` 是交给 `Geodesy-Analysis` 的入口。日志位于 case 的 `LOG/PRE/GAMMA/`
 和各阶段输出内部的逐景 `logs/`。

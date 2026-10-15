@@ -140,6 +140,30 @@ class GammaCropRunnerTests(unittest.TestCase):
             copies = [command for command in runner.commands if command[0] == "SLC_copy"]
             self.assertTrue(all(command[5] == "4" for command in copies))
 
+    def test_case_layout_writes_crop_logs_below_case_root(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            base = self._plan(Path(directory))
+            case_root = base.config.project_root / "S1/ASCENDING_128"
+            config = dataclasses.replace(
+                base.config,
+                case_root=case_root,
+                output_dir=case_root / "PRE/GAMMA/RSLC_SUBSET",
+            )
+            plan = build_crop_plan(config)
+
+            run_crop_stack(
+                plan,
+                command_runner=FakeSlcRunner(),
+                geometry_builder=fake_geometry,
+                progress_sink=lambda line: None,
+            )
+
+            log = (
+                case_root
+                / "LOG/PRE/GAMMA/gamma_sar_rslc_crop/main/stdout.log"
+            )
+            self.assertTrue(log.is_file())
+
     def test_all_polarizations_publish_explicit_asset_names(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             base = self._plan(Path(directory))

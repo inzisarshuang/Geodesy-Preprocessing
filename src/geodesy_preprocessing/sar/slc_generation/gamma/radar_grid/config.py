@@ -22,6 +22,7 @@ from datetime import datetime
 from pathlib import Path
 from types import MappingProxyType
 
+from geodesy_preprocessing.common.case_layout import optional_case_layout
 from geodesy_preprocessing.common.paths import validate_within_root
 
 _CASE_NAME = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.-]*")
@@ -47,7 +48,12 @@ _ADAPTER_KEYS = {
     "adapter.radiometric_calibration",
     "adapter.noise_subtraction",
 }
-_CASE_KEYS = {"sensor", "raw_dir", "slc_dir"} | _VALUE_KEYS | _ADAPTER_KEYS
+_CASE_KEYS = {
+    "case_root",
+    "sensor",
+    "raw_dir",
+    "slc_dir",
+} | _VALUE_KEYS | _ADAPTER_KEYS
 _SHELL_OPERATORS = re.compile(r"[;&|<>`\n\r]|\$\(")
 
 
@@ -68,6 +74,7 @@ class GammaRadarSlcCase:
     adapter_options: Mapping[str, str] = field(
         default_factory=lambda: MappingProxyType({})
     )
+    case_root: Path | None = None
 
 
 OtherSarSlcCase = GammaRadarSlcCase
@@ -222,13 +229,22 @@ def _load_sar_slc_config(
             if values.get(key)
         }
         images_value = values.get("images_file", f"images_{sensor}")
+        raw_dir = _resolve_project_path(project_root, values["raw_dir"], "raw")
+        slc_dir = _resolve_project_path(project_root, values["slc_dir"], "SLC")
+        images_file = _resolve_project_path(project_root, images_value, "images")
+        layout = optional_case_layout(project_root, values)
+        if layout is not None:
+            slc_dir = layout.require_product(slc_dir, "SLC", "slc_dir")
+            images_file = layout.require_product_member(
+                images_file, "SLC", "images_file"
+            )
         cases.append(
             GammaRadarSlcCase(
                 name=name,
                 sensor=sensor,
-                raw_dir=_resolve_project_path(project_root, values["raw_dir"], "raw"),
-                slc_dir=_resolve_project_path(project_root, values["slc_dir"], "SLC"),
-                images_file=_resolve_project_path(project_root, images_value, "images"),
+                raw_dir=raw_dir,
+                slc_dir=slc_dir,
+                images_file=images_file,
                 polarizations=_polarizations(values.get("polarizations", "HH"), source),
                 range_looks=_positive_integer(
                     values.get("range_looks", "10"), "range_looks", source
@@ -239,6 +255,7 @@ def _load_sar_slc_config(
                 commands=MappingProxyType(command_values),
                 workflow_task=values.get("workflow_task", default_workflow_task),
                 adapter_options=MappingProxyType(adapter_options),
+                case_root=None if layout is None else layout.case_root,
             )
         )
     if not cases:

@@ -19,6 +19,7 @@ from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from pathlib import Path
 
+from geodesy_preprocessing.common.case_layout import resolve_case_log_path
 from geodesy_preprocessing.common.progress import emit_progress
 
 from .models import CommandSpec
@@ -135,11 +136,9 @@ def run_gamma_radar_slc(
             )
         )
         log_dir = (
-            staging_parent
-            / "LOG/PRE"
-            / task
-            / case.name
-            / product.date
+            resolve_case_log_path(case.case_root, task, case.name, product.date)
+            if case.case_root is not None
+            else staging_parent / "LOG/PRE" / task / case.name / product.date
         )
         log_dir.mkdir(parents=True, exist_ok=True)
         stdout_log = log_dir / "stdout.log"

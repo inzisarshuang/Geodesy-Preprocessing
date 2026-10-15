@@ -17,6 +17,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
+from geodesy_preprocessing.common.case_layout import resolve_case_log_path
 from geodesy_preprocessing.common.progress import emit_progress
 from geodesy_preprocessing.sar.common.models import (
     RegisteredStackAsset,
@@ -168,7 +169,11 @@ def run_crop_stack(
             )
         )
         log_dir = (
-            plan.config.project_root
+            resolve_case_log_path(
+                plan.config.case_root, "gamma_sar_rslc_crop", plan.config.name
+            )
+            if plan.config.case_root is not None
+            else plan.config.project_root
             / "LOG/PRE/GAMMA/gamma_sar_rslc_crop"
             / plan.config.name
         )

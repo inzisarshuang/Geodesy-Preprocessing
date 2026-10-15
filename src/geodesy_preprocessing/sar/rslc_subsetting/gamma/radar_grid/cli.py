@@ -17,6 +17,8 @@ import tempfile
 from pathlib import Path
 from collections.abc import Sequence
 
+from geodesy_preprocessing.common.case_layout import resolve_case_log_path
+
 from .config import load_crop_config
 from .gamma import GammaCommandError, GammaCommandRunner
 from .masking import build_crop_geometry
@@ -93,7 +95,11 @@ def _publish_plan(plan, *, force: bool) -> tuple[Path, bool]:
     )
     try:
         log_dir = (
-            plan.config.project_root
+            resolve_case_log_path(
+                plan.config.case_root, "gamma_sar_rslc_crop_plan", plan.config.name
+            )
+            if plan.config.case_root is not None
+            else plan.config.project_root
             / "LOG/PRE/GAMMA/gamma_sar_rslc_crop_plan"
             / plan.config.name
         )

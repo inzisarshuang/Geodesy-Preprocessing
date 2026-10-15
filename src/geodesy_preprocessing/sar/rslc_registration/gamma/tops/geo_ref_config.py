@@ -17,6 +17,8 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
+from geodesy_preprocessing.common.case_layout import optional_case_layout
+
 
 _CASE_NAME = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.-]*")
 _DEFAULT_KEYS = {
@@ -24,8 +26,10 @@ _DEFAULT_KEYS = {
     "range_looks", "azimuth_looks", "latitude_oversampling",
     "longitude_oversampling", "reference_flag", "incidence_flag",
 }
-_CASE_KEYS = _DEFAULT_KEYS | {"reference", "dem_dir", "slc_dir", "output_dir"}
-_REQUIRED = _CASE_KEYS
+_CASE_KEYS = _DEFAULT_KEYS | {
+    "case_root", "reference", "dem_dir", "slc_dir", "output_dir"
+}
+_REQUIRED = _CASE_KEYS - {"case_root"}
 
 
 @dataclass(frozen=True)
@@ -43,6 +47,7 @@ class GammaTopsGeoRefCase:
     longitude_oversampling: float | None
     reference_flag: int
     incidence_flag: int
+    case_root: Path | None = None
 
 
 GeoRefConfigCase = GammaTopsGeoRefCase
@@ -124,19 +129,31 @@ def load_geo_ref_config(path: str | Path) -> tuple[GeoRefConfigCase, ...]:
             value = Path(values[key]).expanduser()
             return (value if value.is_absolute() else project_root / value).resolve()
 
+        dem_dir = resolved("dem_dir")
+        slc_dir = resolved("slc_dir")
+        output_dir = resolved("output_dir")
+        layout = optional_case_layout(project_root, values)
+        if layout is not None:
+            dem_dir = layout.require_project_input(dem_dir, "dem_dir")
+            slc_dir = layout.require_product(slc_dir, "SLC", "slc_dir")
+            output_dir = layout.require_product(
+                output_dir, "GEOMETRY", "output_dir"
+            )
+
         cases.append(
             GeoRefConfigCase(
                 name=name,
                 reference=values["reference"],
-                dem_dir=resolved("dem_dir"),
-                slc_dir=resolved("slc_dir"),
-                output_dir=resolved("output_dir"),
+                dem_dir=dem_dir,
+                slc_dir=slc_dir,
+                output_dir=output_dir,
                 range_looks=_integer(values["range_looks"], "range looks", source),
                 azimuth_looks=_integer(values["azimuth_looks"], "azimuth looks", source),
                 latitude_oversampling=latitude,
                 longitude_oversampling=longitude,
                 reference_flag=_integer(values["reference_flag"], "reference flag", source, binary=True),
                 incidence_flag=_integer(values["incidence_flag"], "incidence flag", source, binary=True),
+                case_root=None if layout is None else layout.case_root,
             )
         )
     if not cases:

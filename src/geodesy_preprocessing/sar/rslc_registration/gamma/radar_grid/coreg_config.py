@@ -21,6 +21,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
 
+from geodesy_preprocessing.common.case_layout import optional_case_layout
 from geodesy_preprocessing.sar.slc_generation.gamma.radar_grid.config import (
     validate_safe_date,
     validate_within_root,
@@ -75,7 +76,7 @@ _OPTIONAL = {
     "refine_oversampling",
     "refine_correlation_threshold",
 }
-_VALUE_KEYS = _REQUIRED | _OPTIONAL
+_VALUE_KEYS = _REQUIRED | _OPTIONAL | {"case_root"}
 
 
 @dataclass(frozen=True)
@@ -123,6 +124,7 @@ class GammaRadarCoregCase:
     track: str | None = None
     frame: str | None = None
     orbit_direction: str | None = None
+    case_root: Path | None = None
 
 
 def _unknown(section: configparser.SectionProxy, source: Path) -> None:
@@ -307,6 +309,26 @@ def load_gamma_radar_coreg_config(
         if failure_stddev <= warning_stddev or failure_residual <= warning_residual:
             raise ValueError(f"{source}: each failure threshold must be greater than warning threshold")
 
+        slc_dir = _resolve(project_root, values["slc_dir"], "SLC")
+        images_file = _resolve(project_root, values["images_file"], "images")
+        reference_geometry = _resolve(
+            project_root, values["reference_geometry"], "reference geometry"
+        )
+        output_dir = _resolve(project_root, values["output_dir"], "output")
+        layout = optional_case_layout(project_root, values)
+        if layout is not None:
+            slc_dir = layout.require_product(slc_dir, "SLC", "slc_dir")
+            images_file = layout.require_product_member(
+                images_file, "SLC", "images_file"
+            )
+            expected_geometry = layout.product("GEOMETRY") / "reference_geometry.json"
+            if reference_geometry != expected_geometry:
+                raise ValueError(
+                    "reference_geometry must use canonical case path "
+                    f"{expected_geometry}; got {reference_geometry}"
+                )
+            output_dir = layout.require_product(output_dir, "RSLC", "output_dir")
+
         cases.append(
             GammaRadarCoregCase(
                 name=name,
@@ -315,10 +337,10 @@ def load_gamma_radar_coreg_config(
                 reference_date=validate_safe_date(values["reference_date"]),
                 primary_polarization=primary,
                 selected_polarizations=selected,
-                slc_dir=_resolve(project_root, values["slc_dir"], "SLC"),
-                images_file=_resolve(project_root, values["images_file"], "images"),
-                reference_geometry=_resolve(project_root, values["reference_geometry"], "reference geometry"),
-                output_dir=_resolve(project_root, values["output_dir"], "output"),
+                slc_dir=slc_dir,
+                images_file=images_file,
+                reference_geometry=reference_geometry,
+                output_dir=output_dir,
                 range_looks=_positive_integer(values.get("range_looks", "5"), "range_looks", source),
                 azimuth_looks=_positive_integer(values.get("azimuth_looks", "3"), "azimuth_looks", source),
                 refinement=refinement,  # type: ignore[arg-type]
@@ -374,6 +396,7 @@ def load_gamma_radar_coreg_config(
                 track=track,
                 frame=frame,
                 orbit_direction=orbit_direction,
+                case_root=None if layout is None else layout.case_root,
             )
         )
     if not cases:

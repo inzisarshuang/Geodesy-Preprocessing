@@ -19,6 +19,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
+from geodesy_preprocessing.common.case_layout import optional_case_layout
 from geodesy_preprocessing.sar.slc_generation.gamma.radar_grid.config import (
     validate_safe_date,
     validate_within_root,
@@ -50,7 +51,7 @@ _NUMERIC_KEYS = {
     "azimuth_window",
     "area_factor",
 }
-_VALUE_KEYS = _REQUIRED_KEYS | _NUMERIC_KEYS
+_VALUE_KEYS = _REQUIRED_KEYS | _NUMERIC_KEYS | {"case_root"}
 
 
 @dataclass(frozen=True)
@@ -77,6 +78,7 @@ class GammaRadarGeoRefCase:
     range_window: int
     azimuth_window: int
     area_factor: float
+    case_root: Path | None = None
 
 
 def _reject_unknown(
@@ -195,16 +197,29 @@ def load_gamma_radar_geo_ref_config(
         if polynomial not in {1, 3, 4, 6}:
             raise ValueError(f"{source}: polynomial_parameters must be 1, 3, 4 or 6")
 
+        slc_dir = _resolve(project_root, values["slc_dir"], "SLC")
+        images_file = _resolve(project_root, values["images_file"], "images")
+        output_dir = _resolve(project_root, values["output_dir"], "output")
+        layout = optional_case_layout(project_root, values)
+        if layout is not None:
+            slc_dir = layout.require_product(slc_dir, "SLC", "slc_dir")
+            images_file = layout.require_product_member(
+                images_file, "SLC", "images_file"
+            )
+            output_dir = layout.require_product(
+                output_dir, "GEOMETRY", "output_dir"
+            )
+
         cases.append(
             GammaRadarGeoRefCase(
                 name=name,
                 reference_date=validate_safe_date(values["reference_date"]),
                 primary_polarization=polarization,
-                slc_dir=_resolve(project_root, values["slc_dir"], "SLC"),
-                images_file=_resolve(project_root, values["images_file"], "images"),
+                slc_dir=slc_dir,
+                images_file=images_file,
                 dem=_resolve(project_root, values["dem"], "DEM"),
                 dem_par=_resolve(project_root, values["dem_par"], "DEM parameter"),
-                output_dir=_resolve(project_root, values["output_dir"], "output"),
+                output_dir=output_dir,
                 range_looks=_positive_integer(values.get("range_looks", "10"), "range_looks", source),
                 azimuth_looks=_positive_integer(values.get("azimuth_looks", "10"), "azimuth_looks", source),
                 latitude_oversampling=latitude,
@@ -217,6 +232,7 @@ def load_gamma_radar_geo_ref_config(
                 range_window=_positive_integer(values.get("range_window", "128"), "range_window", source),
                 azimuth_window=_positive_integer(values.get("azimuth_window", "128"), "azimuth_window", source),
                 area_factor=_positive_float(values.get("area_factor", "1.0"), "area_factor", source),
+                case_root=None if layout is None else layout.case_root,
             )
         )
     if not cases:

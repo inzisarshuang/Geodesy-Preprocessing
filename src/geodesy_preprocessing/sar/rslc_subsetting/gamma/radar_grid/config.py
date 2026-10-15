@@ -16,6 +16,8 @@ import re
 from dataclasses import dataclass
 from pathlib import Path
 
+from geodesy_preprocessing.common.case_layout import optional_case_layout
+
 
 _CASE_NAME = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.-]*\Z")
 _POLARIZATION = re.compile(r"[A-Z0-9]+\Z")
@@ -26,6 +28,7 @@ _DEFAULT_KEYS = {
     "min_buffer_coverage",
 }
 _CASE_KEYS = _DEFAULT_KEYS | {
+    "case_root",
     "registered_stack",
     "geometry_dir",
     "kml_file",
@@ -59,6 +62,7 @@ class GammaRadarCropConfig:
     polarizations: tuple[str, ...] | None
     require_full_aoi_coverage: bool
     min_buffer_coverage: float
+    case_root: Path | None = None
 
 
 def _reject_unknown(
@@ -150,15 +154,35 @@ def load_crop_config(path: Path, case: str) -> GammaRadarCropConfig:
         value = Path(values[key]).expanduser()
         return (value if value.is_absolute() else project_root / value).resolve()
 
+    registered_stack = resolved("registered_stack")
+    geometry_dir = resolved("geometry_dir")
+    kml_file = resolved("kml_file")
+    output_dir = resolved("output_dir")
+    layout = optional_case_layout(project_root, values)
+    if layout is not None:
+        expected_stack = layout.product("RSLC") / "registered_stack.json"
+        if registered_stack != expected_stack:
+            raise ValueError(
+                "registered_stack must use canonical case path "
+                f"{expected_stack}; got {registered_stack}"
+            )
+        geometry_dir = layout.require_product(
+            geometry_dir, "GEOMETRY", "geometry_dir"
+        )
+        output_dir = layout.require_product(
+            output_dir, "RSLC_SUBSET", "output_dir"
+        )
+        kml_file = layout.require_project_input(kml_file, "kml_file")
+
     placemark = values.get("kml_placemark", "").strip() or None
     return GammaRadarCropConfig(
         name=case,
         project_root=project_root,
-        registered_stack=resolved("registered_stack"),
-        geometry_dir=resolved("geometry_dir"),
-        kml_file=resolved("kml_file"),
+        registered_stack=registered_stack,
+        geometry_dir=geometry_dir,
+        kml_file=kml_file,
         kml_placemark=placemark,
-        output_dir=resolved("output_dir"),
+        output_dir=output_dir,
         buffer_km=buffer_km,
         polarizations=_polarizations(values["polarizations"], source),
         require_full_aoi_coverage=_boolean(
@@ -167,6 +191,7 @@ def load_crop_config(path: Path, case: str) -> GammaRadarCropConfig:
             source,
         ),
         min_buffer_coverage=minimum,
+        case_root=None if layout is None else layout.case_root,
     )
 
 

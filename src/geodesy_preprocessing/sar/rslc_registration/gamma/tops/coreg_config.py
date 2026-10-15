@@ -17,6 +17,8 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
+from geodesy_preprocessing.common.case_layout import optional_case_layout
+
 
 _CASE_NAME = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.-]*")
 _DEFAULT_KEYS = {
@@ -24,9 +26,9 @@ _DEFAULT_KEYS = {
     "phase_stdev_threshold", "id_mode", "npoly", "bridge_mode",
 }
 _CASE_KEYS = _DEFAULT_KEYS | {
-    "slc_dir", "dem_geocode_dir", "output_dir", "reference", "images",
+    "case_root", "slc_dir", "dem_geocode_dir", "output_dir", "reference", "images",
 }
-_REQUIRED = _CASE_KEYS
+_REQUIRED = _CASE_KEYS - {"case_root"}
 
 
 @dataclass(frozen=True)
@@ -47,6 +49,7 @@ class GammaTopsCoregCase:
     id_mode: str
     npoly: int
     bridge_mode: str
+    case_root: Path | None = None
 
 
 CoregConfigCase = GammaTopsCoregCase
@@ -129,14 +132,27 @@ def load_coreg_config(path: str | Path) -> tuple[CoregConfigCase, ...]:
             value = Path(values[key]).expanduser()
             return (value if value.is_absolute() else root / value).resolve()
 
+        slc_dir = resolved("slc_dir")
+        dem_geocode_dir = resolved("dem_geocode_dir")
+        output_dir = resolved("output_dir")
+        images_file = resolved("images")
+        layout = optional_case_layout(root, values)
+        if layout is not None:
+            slc_dir = layout.require_product(slc_dir, "SLC", "slc_dir")
+            dem_geocode_dir = layout.require_product(
+                dem_geocode_dir, "GEOMETRY", "dem_geocode_dir"
+            )
+            output_dir = layout.require_product(output_dir, "RSLC", "output_dir")
+            images_file = layout.require_project_input(images_file, "images")
+
         cases.append(
             CoregConfigCase(
                 name=name,
-                slc_dir=resolved("slc_dir"),
-                dem_geocode_dir=resolved("dem_geocode_dir"),
-                output_dir=resolved("output_dir"),
+                slc_dir=slc_dir,
+                dem_geocode_dir=dem_geocode_dir,
+                output_dir=output_dir,
                 reference=values["reference"],
-                images_file=resolved("images"),
+                images_file=images_file,
                 range_looks=_integer(values["range_looks"], "range looks", source),
                 azimuth_looks=_integer(values["azimuth_looks"], "azimuth looks", source),
                 coherence_threshold=_number(values["coherence_threshold"], "coherence threshold", source),
@@ -145,6 +161,7 @@ def load_coreg_config(path: str | Path) -> tuple[CoregConfigCase, ...]:
                 id_mode=id_mode,
                 npoly=npoly,
                 bridge_mode=bridge,
+                case_root=None if layout is None else layout.case_root,
             )
         )
     if not cases:
