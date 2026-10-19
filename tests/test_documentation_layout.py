@@ -52,7 +52,10 @@ class DocumentationLayoutTests(unittest.TestCase):
 
     def test_durable_guides_do_not_publish_stale_names_or_credentials(self) -> None:
         texts = [path.read_text(encoding="utf-8") for path in DURABLE]
-        texts.extend(path.read_text(encoding="utf-8") for path in (ROOT / "config_examples").glob("*.cfg"))
+        texts.extend(
+            path.read_text(encoding="utf-8")
+            for path in (ROOT / "config_examples").rglob("*.cfg")
+        )
         contents = "\n".join(texts)
         for stale in (
             "geodesy_preprocessing.sar.registration",

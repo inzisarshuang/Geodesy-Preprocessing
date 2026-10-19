@@ -154,7 +154,10 @@ class NisarGammaSlcAdapterTests(unittest.TestCase):
             self.adapter.discover(missing)
 
     def test_gamma_template_has_separate_la_and_optional_lb_cases(self) -> None:
-        template = Path(__file__).resolve().parents[1] / "config_examples/gamma_sar_slc.cfg"
+        template = (
+            Path(__file__).resolve().parents[1]
+            / "config_examples/preprocessing/gamma_slc_grid.cfg"
+        )
         contents = template.read_text(encoding="utf-8")
         for marker in (
             "[case:nisar_la]",

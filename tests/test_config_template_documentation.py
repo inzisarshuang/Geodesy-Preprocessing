@@ -9,7 +9,7 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-TEMPLATES = tuple(sorted((ROOT / "config_examples").glob("*.cfg")))
+TEMPLATES = tuple(sorted((ROOT / "config_examples").rglob("*.cfg")))
 
 
 class ConfigTemplateDocumentationTests(unittest.TestCase):
@@ -70,13 +70,13 @@ class ConfigTemplateDocumentationTests(unittest.TestCase):
         self.assertEqual(problems, [], "\n".join(problems))
 
     def test_gamma_radar_geo_ref_template_documents_its_operational_identity(self) -> None:
-        contents = (ROOT / "config_examples/gamma_sar_geo_ref.cfg").read_text(
+        contents = (ROOT / "config_examples/preprocessing/gamma_geo_ref_grid.cfg").read_text(
             encoding="utf-8"
         )
         for marker in (
             "PRE_GAMMA_SAR_RADAR_GEO_REF",
             "LOG/PRE/GAMMA/SAR_RADAR_GRID_GEO_REF",
-            "geodesy-pre-gamma-sar-geo-ref --config",
+            "geodesy-pre-gamma-geo-ref-grid --config",
             "--case",
             "--dry-run",
             "reference_geometry.json",
@@ -113,13 +113,15 @@ class ConfigTemplateDocumentationTests(unittest.TestCase):
             "LOG/PRE/COMMON/NISAR_ACQUISITION",
         )
         for filename, markers in expectations.items():
-            contents = (ROOT / "config_examples" / filename).read_text(encoding="utf-8")
+            contents = (ROOT / "config_examples/acquisition" / filename).read_text(
+                encoding="utf-8"
+            )
             for marker in common + markers:
                 with self.subTest(filename=filename, marker=marker):
                     self.assertIn(marker, contents)
 
     def test_nisar_gslc_stack_template_documents_native_la_lb_handoff(self) -> None:
-        contents = (ROOT / "config_examples/nisar_gslc_stack.cfg").read_text(
+        contents = (ROOT / "config_examples/preprocessing/nisar_gslc_stack.cfg").read_text(
             encoding="utf-8"
         )
         for marker in (
@@ -140,7 +142,7 @@ class ConfigTemplateDocumentationTests(unittest.TestCase):
                 self.assertIn(marker, contents)
 
     def test_sentinel1_download_template_documents_acquisition_and_safe_handoff(self) -> None:
-        contents = (ROOT / "config_examples/sentinel1_download.cfg").read_text(
+        contents = (ROOT / "config_examples/acquisition/sentinel1_download.cfg").read_text(
             encoding="utf-8"
         )
         for marker in (
@@ -154,6 +156,7 @@ class ConfigTemplateDocumentationTests(unittest.TestCase):
             "query_manifest.json",
             "source_manifest.json",
             "safe_manifest.json",
+            "download_layout = orbit_subdirectories",
             "images_NNN",
             ".netrc",
             "EARTHDATA_TOKEN",

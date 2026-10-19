@@ -24,13 +24,13 @@ plot = ["matplotlib>=3.7"]
 [project.scripts]
 geodesy-pre-dem = "geodesy_preprocessing.dem.cli:main"
 geodesy-pre-gamma-dem-convert = "geodesy_preprocessing.dem.conversion.gamma.cli:main"
-geodesy-pre-gamma-sar-slc = "geodesy_preprocessing.sar.slc_generation.gamma.radar_grid.cli:main"
-geodesy-pre-gamma-sar-tops-slc = "geodesy_preprocessing.sar.slc_generation.gamma.tops.config_cli:main"
-geodesy-pre-gamma-sar-tops-geo-ref = "geodesy_preprocessing.sar.rslc_registration.gamma.tops.geo_ref_config_cli:main"
-geodesy-pre-gamma-sar-tops-coreg = "geodesy_preprocessing.sar.rslc_registration.gamma.tops.coreg_config_cli:main"
-geodesy-pre-gamma-sar-geo-ref = "geodesy_preprocessing.sar.rslc_registration.gamma.radar_grid.geo_ref_cli:main"
-geodesy-pre-gamma-sar-coreg = "geodesy_preprocessing.sar.rslc_registration.gamma.radar_grid.coreg_cli:main"
-geodesy-pre-gamma-sar-rslc-crop = "geodesy_preprocessing.sar.rslc_subsetting.gamma.radar_grid.cli:main"
+geodesy-pre-gamma-slc-grid = "geodesy_preprocessing.sar.slc_generation.gamma.radar_grid.cli:main"
+geodesy-pre-gamma-slc-tops = "geodesy_preprocessing.sar.slc_generation.gamma.tops.config_cli:main"
+geodesy-pre-gamma-geo-ref-tops = "geodesy_preprocessing.sar.rslc_registration.gamma.tops.geo_ref_config_cli:main"
+geodesy-pre-gamma-coreg-tops = "geodesy_preprocessing.sar.rslc_registration.gamma.tops.coreg_config_cli:main"
+geodesy-pre-gamma-geo-ref-grid = "geodesy_preprocessing.sar.rslc_registration.gamma.radar_grid.geo_ref_cli:main"
+geodesy-pre-gamma-coreg-grid = "geodesy_preprocessing.sar.rslc_registration.gamma.radar_grid.coreg_cli:main"
+geodesy-pre-gamma-rslc-crop = "geodesy_preprocessing.sar.rslc_subsetting.gamma.radar_grid.cli:main"
 geodesy-pre-sar-nisar-acquire = "geodesy_preprocessing.sar.acquisition.nisar.cli:main"
 geodesy-pre-sar-nisar-gslc = "geodesy_preprocessing.sar.gslc_subsetting.nisar.cli:main"
 geodesy-pre-sar-sentinel1-acquire = "geodesy_preprocessing.sar.acquisition.sentinel1.cli:main"
@@ -39,4 +39,6 @@ geodesy-pre-sar-sentinel1-acquire = "geodesy_preprocessing.sar.acquisition.senti
 where = ["src"]
 
 [tool.setuptools.data-files]
-"share/geodesy-preprocessing/config_examples" = ["config_examples/*.cfg"]
+"share/geodesy-preprocessing/config_examples/acquisition" = ["config_examples/acquisition/*.cfg"]
+"share/geodesy-preprocessing/config_examples/topography" = ["config_examples/topography/*.cfg"]
+"share/geodesy-preprocessing/config_examples/preprocessing" = ["config_examples/preprocessing/*.cfg"]

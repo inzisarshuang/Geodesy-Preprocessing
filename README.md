@@ -32,7 +32,10 @@ RSLC/GSLC 裁剪及预处理质量检查。基线选择、干涉图、相干性�
 
 ```text
 Geodesy-Preprocessing/
-├── config_examples/                 # 可复制的单阶段 CFG 模板
+├── config_examples/                 # 按项目阶段分类的 CFG 模板
+│   ├── acquisition/                 # SAR 查询和下载
+│   ├── topography/                  # DEM 获取与转换
+│   └── preprocessing/               # SLC、参考几何、配准与裁剪
 ├── docs/
 │   ├── architecture.md              # 仓库边界与源码架构
 │   ├── workflows/                   # 总路线及各产品完整流程
@@ -64,7 +67,7 @@ Geodesy-Preprocessing/
 - [源码架构](docs/architecture.md)与[验收记录](docs/validation/preprocessing_acceptance.md)：
   供开发、维护和判断真实数据验证范围使用。
 
-每份 `config_examples/*.cfg` 只说明一个处理阶段的用途、调用方式、参数、输出、日志、
+每份 `config_examples/<stage>/*.cfg` 只说明一个处理阶段的用途、调用方式、参数、输出、日志、
 完成判断和重跑规则；流程文档负责把多个 CFG 串成完整路线。
 
 ## 3. Workflow Overview / 流程总览
@@ -156,7 +159,7 @@ python -m pip install -e '.[plot]'
 python -c "import geodesy_preprocessing, asf_search, h5py, rasterio, shapely; print('envInSAR OK')"
 geodesy-pre-dem --help
 geodesy-pre-sar-sentinel1-acquire --help
-geodesy-pre-gamma-sar-coreg --help
+geodesy-pre-gamma-coreg-grid --help
 
 # 只有使用 GAMMA 路线时检查：
 command -v srtm2dem
@@ -178,28 +181,30 @@ CFG 属于具体研究区，应复制到项目目录后修改，不直接修改�
 
 ```bash
 PROJECT=/path/to/research_project
-mkdir -p "$PROJECT/config/preprocessing" "$PROJECT/INPUT" "$PROJECT/WORK" "$PROJECT/LOG/PRE"
-cp config_examples/opentopo_dem_download.cfg "$PROJECT/config/preprocessing/"
-cp config_examples/gamma_dem_convert.cfg "$PROJECT/config/preprocessing/"
+mkdir -p "$PROJECT/config/acquisition" "$PROJECT/config/topography" "$PROJECT/config/preprocessing" "$PROJECT/TOPOGRAPHY" "$PROJECT/S1/QUERY" "$PROJECT/S1/DOWNLOAD"
+cp config_examples/topography/opentopo_dem_download.cfg "$PROJECT/config/topography/"
 ```
 
 再复制所选路线需要的 CFG。模板顶部给出正式命令和示例，参数块标明哪些内容必填、
 经常修改、通常不改或需要谨慎修改。
+
+OpenTopography 模板默认在下载后执行 GAMMA `srtm2dem`；只需要公共 GeoTIFF 时将
+`run_srtm2dem=false`。新项目只维护这一份数据集优先的 DEM 配置模板。
 
 ### 5.3 Run And Check Logs / 执行与检查日志
 
 所有下载和批处理都应先检查计划，再正式运行。例如：
 
 ```bash
-# DEM：先检查范围，再下载
-geodesy-pre-dem --config "$PROJECT/config/preprocessing/opentopo_dem_download.cfg" --dry-run
-geodesy-pre-dem --config "$PROJECT/config/preprocessing/opentopo_dem_download.cfg"
+# DEM：先检查范围，再下载并按 CFG 决定是否转换为 GAMMA DEM
+geodesy-pre-dem --config "$PROJECT/config/topography/opentopo_dem_download.cfg" --dry-run
+geodesy-pre-dem --config "$PROJECT/config/topography/opentopo_dem_download.cfg"
 
 # Sentinel-1：先查询和人工检查覆盖，再下载
 geodesy-pre-sar-sentinel1-acquire \
-  --config "$PROJECT/config/preprocessing/sentinel1_download.cfg" --case main --query
+  --config "$PROJECT/config/acquisition/sentinel1_download.cfg" --case main --query
 geodesy-pre-sar-sentinel1-acquire \
-  --config "$PROJECT/config/preprocessing/sentinel1_download.cfg" --case main --download
+  --config "$PROJECT/config/acquisition/sentinel1_download.cfg" --case main --download
 ```
 
 完整 SLC 不需要 BURST 合并；BURST 下载后增加 `--merge`。SLC 生成、参考几何、配准和
@@ -211,10 +216,21 @@ geodesy-pre-sar-sentinel1-acquire \
 
 ```text
 RESEARCH_PROJECT/
-├── config/preprocessing/       # 本研究区填写后的 CFG
-├── INPUT/                      # KML、DEM 和只读任务产品
-├── WORK/                       # SLC、参考几何、RSLC/GSLC 和裁剪结果
-└── LOG/PRE/                    # Workflow 运行日志
+├── config/
+│   ├── acquisition/                    # SAR 查询和下载 CFG
+│   ├── topography/                     # DEM 获取与转换 CFG
+│   └── preprocessing/                  # SLC、配准和裁剪 CFG
+├── TOPOGRAPHY/
+│   ├── catalog.json
+│   └── <dataset_id>/{SOURCE,GAMMA}/    # 可被多个轨道复用的 DEM 数据集
+└── S1/
+    ├── QUERY/
+    ├── DOWNLOAD/<CASE>/
+    └── ASCENDING_128/
+        ├── PRE/GAMMA/{SLC,GEOMETRY,RSLC,RSLC_SUBSET}/
+        ├── ANALYSIS/GAMMA/              # 由 Geodesy-Analysis 管理
+        ├── VISUALIZATION/GAMMA/         # 由绘图仓库管理
+        └── LOG/PRE/GAMMA/
 ```
 
 代码仓库只保存通用实现和空白模板。研究区 KML、填写后的 CFG、下载产品、中间结果和

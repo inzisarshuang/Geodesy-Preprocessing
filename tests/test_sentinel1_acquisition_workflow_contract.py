@@ -61,7 +61,7 @@ max_retries = 3
 retry_delay_seconds = 1
 keep_burst_files = true
 """)
-            tops = config_dir / "gamma_sar_tops_slc.cfg"
+            tops = config_dir / "gamma_slc_tops.cfg"
             tops.write_text("""
 [project]
 root = ../..
@@ -83,10 +83,12 @@ burst_table = WORK/GAMMA/S1_WORK_154/ref_burst_number_table_154
         self.assertEqual(target.images_file, source.query_dir / "images_154")
 
     def test_all_three_products_remain_discoverable_in_template(self) -> None:
-        template = (ROOT / "config_examples/sentinel1_download.cfg").read_text(encoding="utf-8")
+        template = (
+            ROOT / "config_examples/acquisition/sentinel1_download.cfg"
+        ).read_text(encoding="utf-8")
         for product in ("BURST", "SLC", "GRD"):
             self.assertIn(product, template)
-        self.assertIn("gamma_sar_tops_slc.cfg", template)
+        self.assertIn("gamma_slc_tops.cfg", template)
 
 
 if __name__ == "__main__":

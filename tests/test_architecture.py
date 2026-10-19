@@ -64,18 +64,25 @@ class ArchitectureTests(unittest.TestCase):
         self.assertTrue(legacy.isdisjoint(metadata["project"]["scripts"]))
         canonical = {
             "geodesy-pre-gamma-dem-convert",
-            "geodesy-pre-gamma-sar-slc",
-            "geodesy-pre-gamma-sar-tops-slc",
-            "geodesy-pre-gamma-sar-tops-geo-ref",
-            "geodesy-pre-gamma-sar-tops-coreg",
-            "geodesy-pre-gamma-sar-rslc-crop",
+            "geodesy-pre-gamma-slc-grid",
+            "geodesy-pre-gamma-slc-tops",
+            "geodesy-pre-gamma-geo-ref-tops",
+            "geodesy-pre-gamma-coreg-tops",
+            "geodesy-pre-gamma-rslc-crop",
         }
         self.assertTrue(canonical.issubset(metadata["project"]["scripts"]))
+        data_files = metadata["tool"]["setuptools"]["data-files"]
         self.assertEqual(
-            metadata["tool"]["setuptools"]["data-files"][
-                "share/geodesy-preprocessing/config_examples"
-            ],
-            ["config_examples/*.cfg"],
+            data_files["share/geodesy-preprocessing/config_examples/acquisition"],
+            ["config_examples/acquisition/*.cfg"],
+        )
+        self.assertEqual(
+            data_files["share/geodesy-preprocessing/config_examples/topography"],
+            ["config_examples/topography/*.cfg"],
+        )
+        self.assertEqual(
+            data_files["share/geodesy-preprocessing/config_examples/preprocessing"],
+            ["config_examples/preprocessing/*.cfg"],
         )
 
     def test_documentation_places_analysis_after_registered_stack_publication(self) -> None:

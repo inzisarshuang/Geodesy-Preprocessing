@@ -6,8 +6,8 @@ GSLC 已位于地图网格，不需要 GAMMA 配准。Native 路线检查多日�
 ## 查询和下载
 
 ```bash
-geodesy-pre-sar-nisar-acquire --config PROJECT/config/preprocessing/nisar_gslc_download.cfg --case main --query
-geodesy-pre-sar-nisar-acquire --config PROJECT/config/preprocessing/nisar_gslc_download.cfg --case main --download
+geodesy-pre-sar-nisar-acquire --config PROJECT/config/acquisition/nisar_gslc_download.cfg --case main --query
+geodesy-pre-sar-nisar-acquire --config PROJECT/config/acquisition/nisar_gslc_download.cfg --case main --download
 ```
 
 人工检查覆盖图和筛选 CSV 后再下载。Earthdata 凭据只从 `~/.netrc` 或环境变量读取；

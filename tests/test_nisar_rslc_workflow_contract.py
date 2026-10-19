@@ -25,19 +25,19 @@ class NisarRslcWorkflowContractTests(unittest.TestCase):
             scripts = tomllib.load(stream)["project"]["scripts"]
 
         expected = {
-            "geodesy-pre-sar-nisar-acquire": "nisar_rslc_download.cfg",
-            "geodesy-pre-gamma-sar-slc": "gamma_sar_slc.cfg",
-            "geodesy-pre-gamma-sar-geo-ref": "gamma_sar_geo_ref.cfg",
-            "geodesy-pre-gamma-sar-coreg": "gamma_sar_coreg.cfg",
-            "geodesy-pre-gamma-sar-rslc-crop": "gamma_sar_rslc_crop.cfg",
+            "geodesy-pre-sar-nisar-acquire": "acquisition/nisar_rslc_download.cfg",
+            "geodesy-pre-gamma-slc-grid": "preprocessing/gamma_slc_grid.cfg",
+            "geodesy-pre-gamma-geo-ref-grid": "preprocessing/gamma_geo_ref_grid.cfg",
+            "geodesy-pre-gamma-coreg-grid": "preprocessing/gamma_coreg_grid.cfg",
+            "geodesy-pre-gamma-rslc-crop": "preprocessing/gamma_rslc_crop.cfg",
         }
         self.assertTrue(expected.keys() <= scripts.keys())
         for template in expected.values():
             self.assertTrue((ROOT / "config_examples" / template).is_file(), template)
 
     def test_la_is_default_and_lb_requires_explicit_selection(self) -> None:
-        acquisition = _config("nisar_rslc_download.cfg")
-        slc = _config("gamma_sar_slc.cfg")
+        acquisition = _config("acquisition/nisar_rslc_download.cfg")
+        slc = _config("preprocessing/gamma_slc_grid.cfg")
 
         self.assertEqual(acquisition["defaults"]["frequency_mode"], "main_only")
         self.assertEqual(slc["case:nisar_la"]["adapter.frequency"], "A")
@@ -45,11 +45,11 @@ class NisarRslcWorkflowContractTests(unittest.TestCase):
         self.assertNotEqual("nisar_lb", "main")
 
     def test_la_outputs_are_the_next_stage_inputs_without_path_changes(self) -> None:
-        acquisition = _config("nisar_rslc_download.cfg")
-        slc = _config("gamma_sar_slc.cfg")
-        geo_ref = _config("gamma_sar_geo_ref.cfg")
-        coreg = _config("gamma_sar_coreg.cfg")
-        crop = _config("gamma_sar_rslc_crop.cfg")
+        acquisition = _config("acquisition/nisar_rslc_download.cfg")
+        slc = _config("preprocessing/gamma_slc_grid.cfg")
+        geo_ref = _config("preprocessing/gamma_geo_ref_grid.cfg")
+        coreg = _config("preprocessing/gamma_coreg_grid.cfg")
+        crop = _config("preprocessing/gamma_rslc_crop.cfg")
 
         self.assertEqual(
             acquisition["defaults"]["download_dir"],
@@ -86,10 +86,10 @@ class NisarRslcWorkflowContractTests(unittest.TestCase):
         ).read_text(encoding="utf-8")
         commands = [
             "geodesy-pre-sar-nisar-acquire",
-            "geodesy-pre-gamma-sar-slc",
-            "geodesy-pre-gamma-sar-geo-ref",
-            "geodesy-pre-gamma-sar-coreg",
-            "geodesy-pre-gamma-sar-rslc-crop",
+            "geodesy-pre-gamma-slc-grid",
+            "geodesy-pre-gamma-geo-ref-grid",
+            "geodesy-pre-gamma-coreg-grid",
+            "geodesy-pre-gamma-rslc-crop",
         ]
         offsets = [runbook.index(command) for command in commands]
         self.assertEqual(offsets, sorted(offsets))
@@ -101,10 +101,10 @@ class NisarRslcWorkflowContractTests(unittest.TestCase):
             self.assertNotIn(forbidden, shell_blocks)
 
     def test_optional_lb_uses_the_same_explicit_handoff_pattern(self) -> None:
-        slc = _config("gamma_sar_slc.cfg")
-        geo_ref = _config("gamma_sar_geo_ref.cfg")
-        coreg = _config("gamma_sar_coreg.cfg")
-        crop = _config("gamma_sar_rslc_crop.cfg")
+        slc = _config("preprocessing/gamma_slc_grid.cfg")
+        geo_ref = _config("preprocessing/gamma_geo_ref_grid.cfg")
+        coreg = _config("preprocessing/gamma_coreg_grid.cfg")
+        crop = _config("preprocessing/gamma_rslc_crop.cfg")
 
         self.assertEqual(
             slc["case:nisar_lb"]["slc_dir"], geo_ref["case:nisar_lb"]["slc_dir"]

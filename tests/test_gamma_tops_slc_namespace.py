@@ -50,13 +50,14 @@ class GammaTopsSlcNamespaceTests(unittest.TestCase):
             project = tomllib.load(stream)
         scripts = project["project"]["scripts"]
         self.assertEqual(
-            scripts["geodesy-pre-gamma-sar-tops-slc"],
+            scripts["geodesy-pre-gamma-slc-tops"],
             "geodesy_preprocessing.sar.slc_generation.gamma.tops.config_cli:main",
         )
+        self.assertNotIn("geodesy-pre-gamma-sar-tops-slc", scripts)
 
     def test_canonical_template_is_operationally_documented(self) -> None:
         root = Path(__file__).resolve().parents[1]
-        template = root / "config_examples" / "gamma_sar_tops_slc.cfg"
+        template = root / "config_examples/preprocessing/gamma_slc_tops.cfg"
         required_text = (
             "功能用途",
             "适用范围",
@@ -80,7 +81,7 @@ class GammaTopsSlcNamespaceTests(unittest.TestCase):
         contents = template.read_text(encoding="utf-8")
         for marker in required_text:
             self.assertIn(marker, contents)
-        self.assertIn("geodesy-pre-gamma-sar-tops-slc", contents)
+        self.assertIn("geodesy-pre-gamma-slc-tops", contents)
 
 
 if __name__ == "__main__":

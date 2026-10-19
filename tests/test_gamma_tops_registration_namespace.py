@@ -73,11 +73,13 @@ class GammaTopsRegistrationNamespaceTests(unittest.TestCase):
         root = Path(__file__).resolve().parents[1]
         with (root / "pyproject.toml").open("rb") as stream:
             scripts = tomllib.load(stream)["project"]["scripts"]
-        self.assertIn("geodesy-pre-gamma-sar-tops-geo-ref", scripts)
-        self.assertIn("geodesy-pre-gamma-sar-tops-coreg", scripts)
+        self.assertIn("geodesy-pre-gamma-geo-ref-tops", scripts)
+        self.assertIn("geodesy-pre-gamma-coreg-tops", scripts)
+        self.assertNotIn("geodesy-pre-gamma-sar-tops-geo-ref", scripts)
+        self.assertNotIn("geodesy-pre-gamma-sar-tops-coreg", scripts)
         templates = (
-            "gamma_sar_tops_geo_ref.cfg",
-            "gamma_sar_tops_coreg.cfg",
+            "gamma_geo_ref_tops.cfg",
+            "gamma_coreg_tops.cfg",
         )
         markers = (
             "功能用途",
@@ -101,7 +103,9 @@ class GammaTopsRegistrationNamespaceTests(unittest.TestCase):
         )
         for name in templates:
             with self.subTest(template=name):
-                contents = (root / "config_examples" / name).read_text(encoding="utf-8")
+                contents = (
+                    root / "config_examples/preprocessing" / name
+                ).read_text(encoding="utf-8")
                 for marker in markers:
                     self.assertIn(marker, contents)
 

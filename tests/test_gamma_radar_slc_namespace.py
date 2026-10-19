@@ -46,7 +46,7 @@ class GammaRadarSlcNamespaceTests(unittest.TestCase):
         self.root = Path(self.temporary.name)
         (self.root / "RAW/main").mkdir(parents=True)
         write_cosmo_product(self.root / "RAW/main", sensor="csg", date="20260922")
-        self.config = self.root / "gamma_sar_slc.cfg"
+        self.config = self.root / "gamma_slc_grid.cfg"
         self.config.write_text(
             f"""[project]
 root = {self.root}
@@ -93,12 +93,15 @@ import_command = {sys.executable} {FIXTURE} cosmo
             (REPOSITORY_ROOT / "pyproject.toml").read_text(encoding="utf-8")
         )
         self.assertEqual(
-            metadata["project"]["scripts"]["geodesy-pre-gamma-sar-slc"],
+            metadata["project"]["scripts"]["geodesy-pre-gamma-slc-grid"],
             "geodesy_preprocessing.sar.slc_generation.gamma.radar_grid.cli:main",
         )
-        templates = (("gamma_sar_slc.cfg", "geodesy-pre-gamma-sar-slc", "PRE_GAMMA_SAR_SLC"),)
+        self.assertNotIn(
+            "geodesy-pre-gamma-sar-slc", metadata["project"]["scripts"]
+        )
+        templates = (("gamma_slc_grid.cfg", "geodesy-pre-gamma-slc-grid", "PRE_GAMMA_SAR_SLC"),)
         for filename, command, task in templates:
-            path = REPOSITORY_ROOT / "config_examples" / filename
+            path = REPOSITORY_ROOT / "config_examples/preprocessing" / filename
             text = path.read_text(encoding="utf-8")
             with self.subTest(filename=filename):
                 for marker in (

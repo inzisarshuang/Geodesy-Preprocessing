@@ -6,6 +6,7 @@
 
 函数说明:
     ``Sentinel1ProductType`` 区分 BURST、SLC 和 GRD；
+    ``Sentinel1DownloadLayout`` 区分逐轨子目录与单轨扁平下载；
     ``Sentinel1AcquisitionCase`` 保存查询与下载参数；``Sentinel1Product`` 保存单个
     不含凭据的提供方产品元数据。
 """
