@@ -13,9 +13,10 @@
 
 from __future__ import annotations
 
+import csv
 import hashlib
 import json
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 
 from .models import Sentinel1AcquisitionCase
@@ -126,17 +127,36 @@ def validate_query_for_download(
     """Reject stale options/AOI or a modified selected CSV before download."""
 
     digest = aoi_sha256(case)
-    if (
-        manifest.case_name != case.name
-        or manifest.aoi_sha256 != digest
-        or manifest.fingerprint != query_fingerprint(case, digest)
-    ):
+    if manifest.case_name != case.name or manifest.aoi_sha256 != digest:
         raise ValueError("stale Sentinel-1 query fingerprint or KML; run query again")
+    narrowed_track: int | None = None
+    if manifest.fingerprint != query_fingerprint(case, digest):
+        if (
+            case.tracks is None
+            or len(case.tracks) != 1
+            or manifest.fingerprint
+            != query_fingerprint(replace(case, tracks=None), digest)
+        ):
+            raise ValueError("stale Sentinel-1 query fingerprint or KML; run query again")
+        narrowed_track = case.tracks[0]
     selected_name = f"S1_{case.product_type.value}_selected.csv"
     expected = dict(manifest.artifact_digests).get(selected_name)
     selected = case.query_dir / selected_name
     if expected is None or not selected.is_file() or sha256_file(selected) != expected:
         raise ValueError("Sentinel-1 selected CSV changed after query; run query again")
+    if narrowed_track is not None:
+        with selected.open("r", encoding="utf-8", newline="") as stream:
+            rows = list(csv.DictReader(stream))
+        try:
+            selected_tracks = {int(row["relative_orbit"]) for row in rows}
+        except (KeyError, TypeError, ValueError) as error:
+            raise ValueError(
+                "Sentinel-1 selected CSV has invalid relative_orbit values; run query again"
+            ) from error
+        if selected_tracks != {narrowed_track}:
+            raise ValueError(
+                "Sentinel-1 selected CSV does not match the configured track; run query again"
+            )
 
 
 __all__ = [

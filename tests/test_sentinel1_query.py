@@ -93,6 +93,14 @@ class Sentinel1QueryTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "stale.*KML|fingerprint"):
             load_query_for_download(self.case)
 
+    def test_auto_track_query_can_be_narrowed_to_its_single_selected_track(self) -> None:
+        auto_case = replace(self.case, tracks=None)
+        result = publish_sentinel1_query(
+            auto_case, _Client([copy.deepcopy(self.record)])
+        )
+
+        validate_query_for_download(self.case, result.manifest)
+
     def test_product_type_outputs_do_not_mix(self) -> None:
         record = copy.deepcopy(json.loads(FIXTURE.read_text(encoding="utf-8"))[2])
         case = replace(self.case, product_type=Sentinel1ProductType.GRD, query_dir=self.root / "QUERY" / "GRD")
