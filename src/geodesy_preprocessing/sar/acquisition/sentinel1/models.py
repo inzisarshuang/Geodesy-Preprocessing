@@ -25,6 +25,13 @@ class Sentinel1ProductType(str, Enum):
     GRD = "GRD"
 
 
+class Sentinel1DownloadLayout(str, Enum):
+    """Physical layout used below one acquisition case's download directory."""
+
+    ORBIT_SUBDIRECTORIES = "orbit_subdirectories"
+    FLAT = "flat"
+
+
 @dataclass(frozen=True)
 class Sentinel1AcquisitionCase:
     """One project-local Sentinel-1 query, download, and optional merge case."""
@@ -48,6 +55,9 @@ class Sentinel1AcquisitionCase:
     max_retries: int
     retry_delay_seconds: int
     keep_burst_files: bool
+    download_layout: Sentinel1DownloadLayout = (
+        Sentinel1DownloadLayout.ORBIT_SUBDIRECTORIES
+    )
 
 
 @dataclass(frozen=True)
@@ -79,6 +89,7 @@ class Sentinel1Product:
 
 __all__ = [
     "Sentinel1AcquisitionCase",
+    "Sentinel1DownloadLayout",
     "Sentinel1Product",
     "Sentinel1ProductType",
 ]

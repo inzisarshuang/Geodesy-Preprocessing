@@ -11,6 +11,7 @@ from geodesy_preprocessing.sar.acquisition.sentinel1.config import (
     select_sentinel1_acquisition_case,
 )
 from geodesy_preprocessing.sar.acquisition.sentinel1.models import (
+    Sentinel1DownloadLayout,
     Sentinel1ProductType,
 )
 
@@ -90,10 +91,27 @@ keep_burst_files = false
         self.assertEqual(case.max_retries, 5)
         self.assertEqual(case.retry_delay_seconds, 20)
         self.assertFalse(case.keep_burst_files)
+        self.assertIs(
+            case.download_layout,
+            Sentinel1DownloadLayout.ORBIT_SUBDIRECTORIES,
+        )
         self.assertEqual(case.kml_file, project / "AOI/area.kml")
         self.assertIsNone(case.bbox)
         self.assertEqual(case.query_dir, project / "INPUT/SENTINEL1/QUERY/main")
         self.assertEqual(case.download_dir, project / "INPUT/SENTINEL1/main")
+
+    def test_flat_layout_requires_one_explicit_track(self) -> None:
+        """Catch ambiguous flat destinations before acquisition writes anything."""
+
+        self._write(extra="download_layout = flat\ntracks = 154")
+        case = load_sentinel1_acquisition_config(self.config)[0]
+        self.assertIs(case.download_layout, Sentinel1DownloadLayout.FLAT)
+
+        for tracks in ("auto", "154,155"):
+            with self.subTest(tracks=tracks):
+                self._write(extra=f"download_layout = flat\ntracks = {tracks}")
+                with self.assertRaisesRegex(ValueError, "flat.*single.*track"):
+                    load_sentinel1_acquisition_config(self.config)
 
     def test_supports_bbox_instead_of_kml_and_auto_polarization(self) -> None:
         self._write(

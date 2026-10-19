@@ -22,6 +22,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from .download import validate_sentinel1_download
+from .layout import resolve_download_track_dir
 from .manifest import validate_query_for_download
 from .models import Sentinel1AcquisitionCase, Sentinel1Product, Sentinel1ProductType
 from .query import Sentinel1QueryResult
@@ -242,7 +243,7 @@ def merge_sentinel1_bursts(
             progress_sink(f"[{index}/{len(groups)}] {label}: complete")
             continue
 
-        orbit_dir = case.download_dir / f"Orbit_{track:03d}"
+        orbit_dir = resolve_download_track_dir(case, track)
         orbit_dir.mkdir(parents=True, exist_ok=True)
         staging = Path(tempfile.mkdtemp(prefix=".merge-", suffix=".stage", dir=orbit_dir))
         progress_sink(f"[{index}/{len(groups)}] {label}: merging")

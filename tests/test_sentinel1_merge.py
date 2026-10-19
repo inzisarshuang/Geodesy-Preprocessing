@@ -23,6 +23,7 @@ from geodesy_preprocessing.sar.acquisition.sentinel1.merge import (
 )
 from geodesy_preprocessing.sar.acquisition.sentinel1.models import (
     Sentinel1AcquisitionCase,
+    Sentinel1DownloadLayout,
     Sentinel1Product,
     Sentinel1ProductType,
 )
@@ -149,6 +150,64 @@ class Sentinel1MergeTests(unittest.TestCase):
             merge_sentinel1_bursts(self.case, self.query, self.source_manifest, runner=runner, progress_sink=lambda _: None)
         self.assertFalse((self.download / "Orbit_154" / "BROKEN.SAFE").exists())
         self.assertEqual(tuple(self.download.glob(".merge-*.stage")), ())
+
+    def test_flat_layout_publishes_safe_without_orbit_subdirectory(self) -> None:
+        """Catch merge and manifest output diverging from a flat download case."""
+
+        flat_download = self.root / "FLAT"
+        flat_download.mkdir()
+        records = []
+        for product in self.products:
+            source = self.download / "Orbit_154" / product.file_name
+            target = flat_download / product.file_name
+            source.replace(target)
+            records.append(
+                {
+                    "product_id": product.product_id,
+                    "file": product.file_name,
+                    "size_bytes": target.stat().st_size,
+                    "sha256": hashlib.sha256(target.read_bytes()).hexdigest(),
+                }
+            )
+        source_manifest = flat_download / "source_manifest.json"
+        source_manifest.write_text(
+            json.dumps(
+                {
+                    "schema_version": 1,
+                    "case_name": "main",
+                    "query_fingerprint": self.query.manifest.fingerprint,
+                    "products": records,
+                }
+            ),
+            encoding="utf-8",
+        )
+        flat_case = replace(
+            self.case,
+            download_dir=flat_download,
+            download_layout=Sentinel1DownloadLayout.FLAT,
+        )
+
+        def runner(granules, work_dir):
+            safe = work_dir / "S1_MERGED.SAFE"
+            (safe / "annotation").mkdir(parents=True)
+            (safe / "measurement").mkdir()
+            (safe / "manifest.safe").write_text("manifest")
+            (safe / "annotation" / "a.xml").write_text("annotation")
+            (safe / "measurement" / "m.tiff").write_bytes(b"measurement")
+            return safe
+
+        result = merge_sentinel1_bursts(
+            flat_case,
+            self.query,
+            source_manifest,
+            runner=runner,
+            progress_sink=lambda _: None,
+        )
+
+        self.assertEqual(result.safe_directories[0].parent, flat_download)
+        manifest = json.loads(result.safe_manifest.read_text(encoding="utf-8"))
+        self.assertEqual(manifest["groups"][0]["safe"], "S1_MERGED.SAFE")
+        self.assertFalse((flat_download / "Orbit_154").exists())
 
     def test_merge_rejects_stale_safe_signature(self) -> None:
         def runner(granules, work_dir):

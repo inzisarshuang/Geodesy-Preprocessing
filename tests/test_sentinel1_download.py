@@ -26,6 +26,7 @@ from geodesy_preprocessing.sar.acquisition.sentinel1.manifest import (
 )
 from geodesy_preprocessing.sar.acquisition.sentinel1.models import (
     Sentinel1AcquisitionCase,
+    Sentinel1DownloadLayout,
     Sentinel1Product,
     Sentinel1ProductType,
 )
@@ -206,6 +207,27 @@ class Sentinel1DownloadTests(unittest.TestCase):
         trace = "".join(traceback.format_exception(type(raised.exception), raised.exception, raised.exception.__traceback__))
         for secret in ("user", "pass", "TOKEN", "SECRET"):
             self.assertNotIn(secret, trace)
+
+    def test_flat_layout_publishes_without_orbit_subdirectory(self) -> None:
+        """Catch downloads silently restoring Orbit_NNN below a flat case."""
+
+        flat_case = replace(
+            self.case,
+            download_layout=Sentinel1DownloadLayout.FLAT,
+        )
+        product = self._product()
+
+        result = download_sentinel1(
+            flat_case,
+            self._query((product,)),
+            _Session([_Response(self.payload)]),
+            progress_sink=lambda _: None,
+        )
+
+        self.assertEqual(result.files[0].parent, flat_case.download_dir)
+        manifest = json.loads(result.source_manifest.read_text(encoding="utf-8"))
+        self.assertEqual(manifest["products"][0]["file"], product.file_name)
+        self.assertFalse((flat_case.download_dir / "Orbit_154").exists())
 
     def test_server_ignoring_range_restarts_and_ctrl_c_preserves_part(self) -> None:
         product = self._product()

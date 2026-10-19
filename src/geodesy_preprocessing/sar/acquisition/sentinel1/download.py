@@ -23,6 +23,7 @@ from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 
 from .manifest import validate_query_for_download
+from .layout import resolve_download_track_dir
 from .models import Sentinel1AcquisitionCase, Sentinel1Product, Sentinel1ProductType
 from .query import Sentinel1QueryResult
 
@@ -165,7 +166,7 @@ def _stream_once(session, product: Sentinel1Product, part: Path) -> None:
 
 
 def _download_one(case: Sentinel1AcquisitionCase, session, product: Sentinel1Product) -> tuple[Path, str, dict[str, object]]:
-    directory = case.download_dir / f"Orbit_{product.relative_orbit:03d}"
+    directory = resolve_download_track_dir(case, product.relative_orbit)
     directory.mkdir(parents=True, exist_ok=True)
     target = directory / _safe_filename(product)
     part = directory / f"{target.name}.part"

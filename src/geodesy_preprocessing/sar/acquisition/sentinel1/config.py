@@ -20,7 +20,11 @@ from pathlib import Path
 
 from geodesy_preprocessing.common.paths import validate_within_root
 
-from .models import Sentinel1AcquisitionCase, Sentinel1ProductType
+from .models import (
+    Sentinel1AcquisitionCase,
+    Sentinel1DownloadLayout,
+    Sentinel1ProductType,
+)
 
 
 _CASE_NAME = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.-]*\Z")
@@ -49,6 +53,7 @@ _ALLOWED = _REQUIRED | {
     "max_retries",
     "retry_delay_seconds",
     "keep_burst_files",
+    "download_layout",
 }
 _POLARIZATIONS = {"HH", "HV", "VH", "VV"}
 _BURST_BEAMS = {"IW", "EW"}
@@ -218,6 +223,21 @@ def load_sentinel1_acquisition_config(
             raise ValueError(f"{source}: coverage_threshold must be numeric") from error
         if not math.isfinite(threshold) or not 0.0 < threshold <= 1.0:
             raise ValueError(f"{source}: coverage_threshold must be greater than 0 and at most 1")
+        tracks = _selection(values.get("tracks", "auto"), source)
+        try:
+            download_layout = Sentinel1DownloadLayout(
+                values.get("download_layout", "orbit_subdirectories").lower()
+            )
+        except ValueError as error:
+            raise ValueError(
+                f"{source}: download_layout must be orbit_subdirectories or flat"
+            ) from error
+        if download_layout is Sentinel1DownloadLayout.FLAT and (
+            tracks is None or len(tracks) != 1
+        ):
+            raise ValueError(
+                f"{source}: download_layout flat requires a single explicit track"
+            )
 
         cases.append(
             Sentinel1AcquisitionCase(
@@ -231,7 +251,7 @@ def load_sentinel1_acquisition_config(
                 beam_mode=beam_mode,
                 polarizations=_polarizations(values.get("polarizations", "auto"), source),
                 provider=provider,
-                tracks=_selection(values.get("tracks", "auto"), source),
+                tracks=tracks,
                 orbit_direction=None if direction_text == "auto" else direction_text.upper(),
                 coverage_threshold=threshold,
                 query_dir=_resolve(project_root, values["query_dir"], "query"),
@@ -254,6 +274,7 @@ def load_sentinel1_acquisition_config(
                     "keep_burst_files",
                     source,
                 ),
+                download_layout=download_layout,
             )
         )
     if not cases:
