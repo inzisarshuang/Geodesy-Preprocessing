@@ -4,16 +4,19 @@
     从项目 CFG 选择一个单频 case，支持只读查看逐景计划或正式运行配准与发布。
 
 函数说明:
-    ``main`` 提供 ``geodesy-pre-gamma-sar-coreg`` 正式命令。
+    ``main`` 提供 ``geodesy-pre-gamma-coreg-grid`` 正式命令。
 """
 
 from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 from collections.abc import Sequence
 from pathlib import Path
+
+from geodesy_preprocessing.common.progress import ConsoleProgress
 
 from .coreg_config import (
     load_gamma_radar_coreg_config,
@@ -28,7 +31,7 @@ from .coreg_runner import (
 
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        prog="geodesy-pre-gamma-sar-coreg",
+        prog="geodesy-pre-gamma-coreg-grid",
         description="Coregister an ordinary GAMMA radar-grid SLC stack.",
     )
     parser.add_argument("--config", required=True, type=Path, help="project CFG path")
@@ -47,7 +50,7 @@ def main(arguments: Sequence[str] | None = None) -> int:
     options = _parser().parse_args(arguments)
     try:
         case = select_gamma_radar_coreg_case(
-            load_gamma_radar_coreg_config(options.config), options.case
+            load_gamma_radar_coreg_config(options.config, case_name=options.case), options.case
         )
         plan = build_gamma_radar_coreg_plan(case)
     except (FileNotFoundError, FileExistsError, OSError, ValueError) as error:
@@ -68,6 +71,7 @@ def main(arguments: Sequence[str] | None = None) -> int:
                     "primary_polarization": case.primary_polarization,
                     "selected_polarizations": list(case.selected_polarizations),
                     "refinement": case.refinement,
+                    "quality_policy": case.quality_policy,
                     "sar_mode": case.sar_mode,
                     "scene_count": len(plan.scenes),
                     "output_dir": str(case.output_dir),
@@ -79,7 +83,12 @@ def main(arguments: Sequence[str] | None = None) -> int:
         )
         return 0
     try:
-        run_gamma_radar_coreg(plan)
+        sink = (
+            print
+            if os.environ.get("GEODESY_PROGRESS_PROTOCOL") == "1"
+            else ConsoleProgress()
+        )
+        run_gamma_radar_coreg(plan, progress_sink=sink)
     except KeyboardInterrupt:
         print("ERROR: GAMMA radar-grid coregistration interrupted", file=sys.stderr)
         return 130

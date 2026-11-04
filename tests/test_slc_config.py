@@ -49,10 +49,12 @@ class SlcConfigTests(unittest.TestCase):
                         f"images = RAW_{year}/images_{orbit}",
                         "burst_table = "
                         f"RAW_{year}/S1_WORK_{orbit}/ref_burst_number_table_{orbit}",
+                        "roi_file = ROI.kml",
+                        f"reference_selector = {year}0905",
                     )
                 )
             )
-        config = config_dir / "gamma_sar_tops_slc.cfg"
+        config = config_dir / "gamma_slc_tops.cfg"
         config.write_text(
             "\n".join(
                 (
@@ -65,6 +67,7 @@ class SlcConfigTests(unittest.TestCase):
                     "azimuth_looks = 2",
                     "polarization = -",
                     "workflow = safe",
+                    "burst_coverage_plot = false",
                     "",
                     *sections,
                     "",
@@ -90,6 +93,9 @@ class SlcConfigTests(unittest.TestCase):
             self.assertEqual(first.azimuth_looks, 2)
             self.assertEqual(first.polarization, "-")
             self.assertEqual(first.workflow_flag, 1)
+            self.assertEqual(first.roi_file, project / "ROI.kml")
+            self.assertEqual(first.reference_selector, "20240905")
+            self.assertFalse(first.burst_coverage_plot)
             self.assertEqual(
                 slc_case_arguments(first),
                 (
@@ -119,6 +125,81 @@ class SlcConfigTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "unknown SLC case"):
                 select_slc_case(cases, "missing")
             self.assertEqual(select_slc_case(cases, "2026_001").name, "2026_001")
+
+    def test_selected_case_uses_method_root_defaults_without_validating_other_cases(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            project = Path(directory) / "study"
+            config_dir = project / "config" / "1preprocessing"
+            config_dir.mkdir(parents=True)
+            config = config_dir / "gamma_slc_tops.cfg"
+            config.write_text(
+                """[project]
+root = ../..
+
+[defaults]
+opod_dir = -
+range_looks = 7
+azimuth_looks = 2
+polarization = -
+workflow = safe
+
+[case:ascending]
+project = S1/ASCENDING_128
+processing_root = S1/ASCENDING_128/GAMMA
+raw_dir = S1/DOWNLOAD/ascending/Orbit_128
+images = S1/DOWNLOAD/ascending/images_128
+burst_table = S1/DOWNLOAD/ascending/ref_burst_number_table_128
+
+[case:unrelated_broken]
+project = S1/DESCENDING_135
+processing_root = outside/the/case
+""",
+                encoding="utf-8",
+            )
+
+            cases = load_slc_config(config, case_name="ascending")
+
+            self.assertEqual(len(cases), 1)
+            self.assertEqual(cases[0].slc_dir, project / "S1/ASCENDING_128/GAMMA/SLC")
+            self.assertEqual(
+                cases[0].figure_dir,
+                project / "S1/ASCENDING_128/GAMMA/FIGURES/PRE/SLC",
+            )
+
+    def test_selected_case_respects_safe_explicit_output_and_figure_directories(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            project = Path(directory) / "study"
+            config_dir = project / "config" / "1preprocessing"
+            config_dir.mkdir(parents=True)
+            config = config_dir / "gamma_slc_tops.cfg"
+            config.write_text(
+                """[project]
+root = ../..
+[defaults]
+opod_dir = -
+range_looks = 7
+azimuth_looks = 2
+polarization = -
+workflow = safe
+[case:ascending]
+project = S1/ASCENDING_128
+processing_root = S1/ASCENDING_128/GAMMA
+raw_dir = S1/DOWNLOAD/ascending/Orbit_128
+slc_dir = S1/ASCENDING_128/GAMMA/SLC_CUSTOM
+figure_dir = S1/ASCENDING_128/GAMMA/FIGURES/PRE/SLC_CUSTOM
+images = S1/DOWNLOAD/ascending/images_128
+burst_table = S1/DOWNLOAD/ascending/ref_burst_number_table_128
+""",
+                encoding="utf-8",
+            )
+
+            case = load_slc_config(config, case_name="ascending")[0]
+
+            self.assertEqual(case.slc_dir, project / "S1/ASCENDING_128/GAMMA/SLC_CUSTOM")
+            self.assertEqual(
+                case.figure_dir,
+                project / "S1/ASCENDING_128/GAMMA/FIGURES/PRE/SLC_CUSTOM",
+            )
 
     def test_rejects_unknown_keys_and_invalid_workflow(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -151,6 +232,36 @@ class SlcConfigTests(unittest.TestCase):
             self.assertEqual(exit_code, 0)
             self.assertIn('"status":"skipped"', terminal.getvalue())
             self.assertIn('"task":"PRE_S1_SLC"', terminal.getvalue())
+
+    def test_cli_prepares_missing_burst_table_before_slc_generation(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            config = self._project(Path(directory), two_cases=False)
+            case = load_slc_config(config)[0]
+            case.burst_table.unlink()
+            destination = case.slc_dir / "20240905"
+            destination.mkdir(parents=True)
+            (destination / "20240905.vv.mli").write_bytes(b"existing")
+            prepared: list[Path] = []
+
+            def prepare(selected) -> Path:
+                selected.burst_table.write_text(
+                    "iw1_number_of_bursts: 1\n", encoding="ascii"
+                )
+                prepared.append(selected.burst_table)
+                return selected.burst_table
+
+            with patch(
+                "geodesy_preprocessing.sar.slc_generation.gamma.tops.config_cli."
+                "ensure_reference_burst_table",
+                side_effect=prepare,
+                create=True,
+            ):
+                exit_code = main(
+                    ["--config", str(config), "--case", "2024_154"]
+                )
+
+            self.assertEqual(exit_code, 0)
+            self.assertEqual(prepared, [case.burst_table])
 
     def test_cli_reports_configuration_errors_without_traceback(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

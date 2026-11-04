@@ -17,12 +17,13 @@ from pathlib import Path
 
 from .cli import legacy_main as legacy_slc_main
 from .cli import main as slc_main
+from .burst_prepare import ensure_reference_burst_table
 from .config import load_slc_config, select_slc_case, slc_case_arguments
 
 
 def _parser(*, legacy: bool) -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        prog="geodesy-pre-s1-slc" if legacy else "geodesy-pre-gamma-sar-tops-slc"
+        prog="geodesy-pre-s1-slc" if legacy else "geodesy-pre-gamma-slc-tops"
     )
     parser.add_argument("--config", required=True, type=Path)
     parser.add_argument("--case")
@@ -33,9 +34,10 @@ def _main(arguments: Sequence[str] | None, *, legacy: bool) -> int:
     options = _parser(legacy=legacy).parse_args(arguments)
 
     try:
-        cases = load_slc_config(options.config)
+        cases = load_slc_config(options.config, case_name=options.case)
         selected = select_slc_case(cases, options.case)
-    except (FileNotFoundError, OSError, ValueError) as error:
+        ensure_reference_burst_table(selected)
+    except (FileNotFoundError, OSError, RuntimeError, ValueError) as error:
         print(f"ERROR: {error}", file=sys.stderr)
         return 2
     target = legacy_slc_main if legacy else slc_main

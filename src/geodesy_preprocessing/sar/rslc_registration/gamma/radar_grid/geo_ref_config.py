@@ -19,6 +19,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
+from geodesy_preprocessing.common.case_layout import optional_case_layout
 from geodesy_preprocessing.sar.slc_generation.gamma.radar_grid.config import (
     validate_safe_date,
     validate_within_root,
@@ -34,7 +35,6 @@ _REQUIRED_KEYS = {
     "images_file",
     "dem",
     "dem_par",
-    "output_dir",
 }
 _NUMERIC_KEYS = {
     "range_looks",
@@ -50,7 +50,9 @@ _NUMERIC_KEYS = {
     "azimuth_window",
     "area_factor",
 }
-_VALUE_KEYS = _REQUIRED_KEYS | _NUMERIC_KEYS
+_VALUE_KEYS = _REQUIRED_KEYS | _NUMERIC_KEYS | {
+    "project", "processing_root", "output_dir", "figure_dir"
+}
 
 
 @dataclass(frozen=True)
@@ -77,6 +79,9 @@ class GammaRadarGeoRefCase:
     range_window: int
     azimuth_window: int
     area_factor: float
+    case_root: Path | None = None
+    processing_root: Path | None = None
+    figure_dir: Path | None = None
 
 
 def _reject_unknown(
@@ -129,7 +134,7 @@ def _resolve(root: Path, value: str, label: str) -> Path:
 
 
 def load_gamma_radar_geo_ref_config(
-    path: str | Path,
+    path: str | Path, case_name: str | None = None,
 ) -> tuple[GammaRadarGeoRefCase, ...]:
     """Load ordered reference-geometry cases from one strict INI file."""
 
@@ -156,12 +161,20 @@ def load_gamma_radar_geo_ref_config(
         _reject_unknown(parser["defaults"], _VALUE_KEYS, source)
         defaults.update((key, value.strip()) for key, value in parser["defaults"].items())
 
+    invalid = [
+        name for name in parser.sections()
+        if name not in {"project", "defaults"} and not name.startswith("case:")
+    ]
+    if invalid:
+        raise ValueError(f"{source}: unsupported section [{invalid[0]}]")
+    case_sections = [name for name in parser.sections() if name.startswith("case:")]
+    if case_name is not None:
+        requested = f"case:{case_name}"
+        if requested not in case_sections:
+            raise ValueError(f"unknown GAMMA radar geo-ref case {case_name!r}")
+        case_sections = [requested]
     cases: list[GammaRadarGeoRefCase] = []
-    for section_name in parser.sections():
-        if section_name in {"project", "defaults"}:
-            continue
-        if not section_name.startswith("case:"):
-            raise ValueError(f"{source}: unsupported section [{section_name}]")
+    for section_name in case_sections:
         name = section_name.removeprefix("case:").strip()
         if not _CASE_NAME.fullmatch(name):
             raise ValueError(f"{source}: unsafe or empty case name: {name!r}")
@@ -169,7 +182,11 @@ def load_gamma_radar_geo_ref_config(
         _reject_unknown(section, _VALUE_KEYS, source)
         values = dict(defaults)
         values.update((key, value.strip()) for key, value in section.items())
-        missing = sorted(key for key in _REQUIRED_KEYS if not values.get(key))
+        layout = optional_case_layout(project_root, values)
+        required = set(_REQUIRED_KEYS)
+        if layout is None:
+            required.add("output_dir")
+        missing = sorted(key for key in required if not values.get(key))
         if missing:
             raise ValueError(f"{source}: [{section_name}] missing keys: {', '.join(missing)}")
 
@@ -195,16 +212,38 @@ def load_gamma_radar_geo_ref_config(
         if polynomial not in {1, 3, 4, 6}:
             raise ValueError(f"{source}: polynomial_parameters must be 1, 3, 4 or 6")
 
+        slc_dir = _resolve(project_root, values["slc_dir"], "SLC")
+        images_file = _resolve(project_root, values["images_file"], "images")
+        dem = _resolve(project_root, values["dem"], "DEM")
+        dem_par = _resolve(project_root, values["dem_par"], "DEM parameter")
+        output_dir = (
+            _resolve(project_root, values["output_dir"], "output")
+            if values.get("output_dir", "").strip()
+            else layout.product("GEOMETRY")  # type: ignore[union-attr]
+        )
+        figure_dir = (
+            _resolve(project_root, values["figure_dir"], "figure_dir")
+            if values.get("figure_dir", "").strip()
+            else (layout.figure("RSLC_GEOCODING") if layout is not None else output_dir)
+        )
+        if layout is not None:
+            slc_dir = layout.require_processing_path(slc_dir, "slc_dir")
+            images_file = layout.require_processing_path(images_file, "images_file")
+            output_dir = layout.require_processing_path(output_dir, "output_dir")
+            figure_dir = layout.require_processing_path(figure_dir, "figure_dir")
+            dem = layout.require_project_input(dem, "dem")
+            dem_par = layout.require_project_input(dem_par, "dem_par")
+
         cases.append(
             GammaRadarGeoRefCase(
                 name=name,
                 reference_date=validate_safe_date(values["reference_date"]),
                 primary_polarization=polarization,
-                slc_dir=_resolve(project_root, values["slc_dir"], "SLC"),
-                images_file=_resolve(project_root, values["images_file"], "images"),
-                dem=_resolve(project_root, values["dem"], "DEM"),
-                dem_par=_resolve(project_root, values["dem_par"], "DEM parameter"),
-                output_dir=_resolve(project_root, values["output_dir"], "output"),
+                slc_dir=slc_dir,
+                images_file=images_file,
+                dem=dem,
+                dem_par=dem_par,
+                output_dir=output_dir,
                 range_looks=_positive_integer(values.get("range_looks", "10"), "range_looks", source),
                 azimuth_looks=_positive_integer(values.get("azimuth_looks", "10"), "azimuth_looks", source),
                 latitude_oversampling=latitude,
@@ -217,6 +256,9 @@ def load_gamma_radar_geo_ref_config(
                 range_window=_positive_integer(values.get("range_window", "128"), "range_window", source),
                 azimuth_window=_positive_integer(values.get("azimuth_window", "128"), "azimuth_window", source),
                 area_factor=_positive_float(values.get("area_factor", "1.0"), "area_factor", source),
+                case_root=None if layout is None else layout.case_root,
+                processing_root=None if layout is None else layout.processing_root,
+                figure_dir=figure_dir,
             )
         )
     if not cases:

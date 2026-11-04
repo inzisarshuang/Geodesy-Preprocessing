@@ -24,7 +24,7 @@ class OtherSarConfigTests(unittest.TestCase):
         self.root = Path(self.temporary.name)
         self.project = self.root / "project"
         self.project.mkdir()
-        self.config = self.root / "gamma_sar_slc.cfg"
+        self.config = self.root / "gamma_slc_grid.cfg"
 
     def tearDown(self) -> None:
         self.temporary.cleanup()
@@ -96,6 +96,34 @@ slc_dir = SLC/b
         self.assertEqual(select_other_sar_slc_case(cases, "b").sensor, "csks")
         with self.assertRaisesRegex(ValueError, "unknown Other-SAR case"):
             select_other_sar_slc_case(cases, "missing")
+
+    def test_selected_radar_case_uses_method_root_defaults_and_isolated_validation(self) -> None:
+        self._write(
+            """[project]
+root = project
+[case:saocom]
+project = SAOCOM/GUIZHOU
+processing_root = SAOCOM/GUIZHOU/GAMMA_mb
+sensor = saocom
+raw_dir = SAOCOM/DOWNLOAD/GUIZHOU
+[case:unrelated_broken]
+project = SAOCOM/BROKEN
+processing_root = invalid/method/root
+sensor = unsupported
+"""
+        )
+
+        case = load_gamma_radar_slc_config(self.config, case_name="saocom")[0]
+
+        self.assertEqual(case.slc_dir, self.project / "SAOCOM/GUIZHOU/GAMMA_mb/SLC")
+        self.assertEqual(
+            case.images_file,
+            self.project / "SAOCOM/GUIZHOU/GAMMA_mb/SLC/images_saocom",
+        )
+        self.assertEqual(
+            case.figure_dir,
+            self.project / "SAOCOM/GUIZHOU/GAMMA_mb/FIGURES/PRE/SLC",
+        )
 
     def test_only_six_sensor_names_are_accepted(self) -> None:
         accepted = ("alos2", "csg", "csks", "lt1", "rsat2", "saocom")

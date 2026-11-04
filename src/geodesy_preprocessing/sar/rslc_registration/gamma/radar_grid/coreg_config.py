@@ -21,6 +21,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
 
+from geodesy_preprocessing.common.case_layout import optional_case_layout
 from geodesy_preprocessing.sar.slc_generation.gamma.radar_grid.config import (
     validate_safe_date,
     validate_within_root,
@@ -47,7 +48,6 @@ _REQUIRED = {
     "slc_dir",
     "images_file",
     "reference_geometry",
-    "output_dir",
 }
 _OPTIONAL = {
     "track",
@@ -56,6 +56,7 @@ _OPTIONAL = {
     "range_looks",
     "azimuth_looks",
     "refinement",
+    "quality_policy",
     "sar_mode",
     "warning_offset_stddev",
     "failure_offset_stddev",
@@ -75,7 +76,9 @@ _OPTIONAL = {
     "refine_oversampling",
     "refine_correlation_threshold",
 }
-_VALUE_KEYS = _REQUIRED | _OPTIONAL
+_VALUE_KEYS = _REQUIRED | _OPTIONAL | {
+    "project", "processing_root", "output_dir", "figure_dir"
+}
 
 
 @dataclass(frozen=True)
@@ -123,6 +126,10 @@ class GammaRadarCoregCase:
     track: str | None = None
     frame: str | None = None
     orbit_direction: str | None = None
+    quality_policy: Literal["strict", "diagnostic"] = "strict"
+    case_root: Path | None = None
+    processing_root: Path | None = None
+    figure_dir: Path | None = None
 
 
 def _unknown(section: configparser.SectionProxy, source: Path) -> None:
@@ -215,7 +222,7 @@ def _polarizations(value: str, source: Path) -> tuple[str, ...]:
 
 
 def load_gamma_radar_coreg_config(
-    path: str | Path,
+    path: str | Path, case_name: str | None = None,
 ) -> tuple[GammaRadarCoregCase, ...]:
     """Load ordered single-frequency radar-grid registration cases."""
 
@@ -242,12 +249,20 @@ def load_gamma_radar_coreg_config(
     if parser.has_section("defaults"):
         _unknown(parser["defaults"], source)
         defaults.update((key, value.strip()) for key, value in parser["defaults"].items())
+    invalid = [
+        name for name in parser.sections()
+        if name not in {"project", "defaults"} and not name.startswith("case:")
+    ]
+    if invalid:
+        raise ValueError(f"{source}: unsupported section [{invalid[0]}]")
+    case_sections = [name for name in parser.sections() if name.startswith("case:")]
+    if case_name is not None:
+        requested = f"case:{case_name}"
+        if requested not in case_sections:
+            raise ValueError(f"unknown GAMMA radar coreg case {case_name!r}")
+        case_sections = [requested]
     cases: list[GammaRadarCoregCase] = []
-    for section_name in parser.sections():
-        if section_name in {"project", "defaults"}:
-            continue
-        if not section_name.startswith("case:"):
-            raise ValueError(f"{source}: unsupported section [{section_name}]")
+    for section_name in case_sections:
         name = section_name.removeprefix("case:").strip()
         if not _CASE_NAME.fullmatch(name):
             raise ValueError(f"{source}: unsafe or empty case name: {name!r}")
@@ -255,7 +270,11 @@ def load_gamma_radar_coreg_config(
         _unknown(section, source)
         values = dict(defaults)
         values.update((key, value.strip()) for key, value in section.items())
-        missing = sorted(key for key in _REQUIRED if not values.get(key))
+        layout = optional_case_layout(project_root, values)
+        required = set(_REQUIRED)
+        if layout is None:
+            required.add("output_dir")
+        missing = sorted(key for key in required if not values.get(key))
         if missing:
             raise ValueError(f"{source}: [{section_name}] missing keys: {', '.join(missing)}")
 
@@ -286,6 +305,11 @@ def load_gamma_radar_coreg_config(
         refinement = values.get("refinement", "standard").lower()
         if refinement not in {"standard", "offset_field"}:
             raise ValueError(f"{source}: refinement must be standard or offset_field")
+        quality_policy = values.get("quality_policy", "strict").lower()
+        if quality_policy not in {"strict", "diagnostic"}:
+            raise ValueError(
+                f"{source}: quality_policy must be strict or diagnostic"
+            )
         expected_mode = _SENSOR_MODES[sensor]
         raw_mode = values.get("sar_mode", "auto").lower()
         if raw_mode == "auto":
@@ -307,6 +331,30 @@ def load_gamma_radar_coreg_config(
         if failure_stddev <= warning_stddev or failure_residual <= warning_residual:
             raise ValueError(f"{source}: each failure threshold must be greater than warning threshold")
 
+        slc_dir = _resolve(project_root, values["slc_dir"], "SLC")
+        images_file = _resolve(project_root, values["images_file"], "images")
+        reference_geometry = _resolve(
+            project_root, values["reference_geometry"], "reference geometry"
+        )
+        output_dir = (
+            _resolve(project_root, values["output_dir"], "output")
+            if values.get("output_dir", "").strip()
+            else layout.product("RSLC")  # type: ignore[union-attr]
+        )
+        figure_dir = (
+            _resolve(project_root, values["figure_dir"], "figure_dir")
+            if values.get("figure_dir", "").strip()
+            else (layout.figure("RSLC") if layout is not None else output_dir)
+        )
+        if layout is not None:
+            slc_dir = layout.require_processing_path(slc_dir, "slc_dir")
+            images_file = layout.require_processing_path(images_file, "images_file")
+            reference_geometry = layout.require_processing_path(
+                reference_geometry, "reference_geometry"
+            )
+            output_dir = layout.require_processing_path(output_dir, "output_dir")
+            figure_dir = layout.require_processing_path(figure_dir, "figure_dir")
+
         cases.append(
             GammaRadarCoregCase(
                 name=name,
@@ -315,10 +363,10 @@ def load_gamma_radar_coreg_config(
                 reference_date=validate_safe_date(values["reference_date"]),
                 primary_polarization=primary,
                 selected_polarizations=selected,
-                slc_dir=_resolve(project_root, values["slc_dir"], "SLC"),
-                images_file=_resolve(project_root, values["images_file"], "images"),
-                reference_geometry=_resolve(project_root, values["reference_geometry"], "reference geometry"),
-                output_dir=_resolve(project_root, values["output_dir"], "output"),
+                slc_dir=slc_dir,
+                images_file=images_file,
+                reference_geometry=reference_geometry,
+                output_dir=output_dir,
                 range_looks=_positive_integer(values.get("range_looks", "5"), "range_looks", source),
                 azimuth_looks=_positive_integer(values.get("azimuth_looks", "3"), "azimuth_looks", source),
                 refinement=refinement,  # type: ignore[arg-type]
@@ -374,6 +422,10 @@ def load_gamma_radar_coreg_config(
                 track=track,
                 frame=frame,
                 orbit_direction=orbit_direction,
+                quality_policy=quality_policy,  # type: ignore[arg-type]
+                case_root=None if layout is None else layout.case_root,
+                processing_root=None if layout is None else layout.processing_root,
+                figure_dir=figure_dir,
             )
         )
     if not cases:

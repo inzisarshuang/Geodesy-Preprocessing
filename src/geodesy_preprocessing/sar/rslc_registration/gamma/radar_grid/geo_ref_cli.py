@@ -4,7 +4,7 @@
     从项目 CFG 选择一个 case，支持只读预检查或正式执行事务式参考几何流程。
 
 函数说明:
-    ``main`` 提供 ``geodesy-pre-gamma-sar-geo-ref`` 正式命令。
+    ``main`` 提供 ``geodesy-pre-gamma-geo-ref-grid`` 正式命令。
 """
 
 from __future__ import annotations
@@ -28,7 +28,7 @@ from .geo_ref_runner import (
 
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        prog="geodesy-pre-gamma-sar-geo-ref",
+        prog="geodesy-pre-gamma-geo-ref-grid",
         description="Build GAMMA reference geometry for an ordinary radar-grid SLC stack.",
     )
     parser.add_argument("--config", required=True, type=Path, help="project CFG path")
@@ -47,7 +47,7 @@ def main(arguments: Sequence[str] | None = None) -> int:
     options = _parser().parse_args(arguments)
     try:
         case = select_gamma_radar_geo_ref_case(
-            load_gamma_radar_geo_ref_config(options.config), options.case
+            load_gamma_radar_geo_ref_config(options.config, case_name=options.case), options.case
         )
         plan = build_gamma_radar_geo_ref_plan(case)
     except (FileNotFoundError, FileExistsError, OSError, ValueError) as error:

@@ -16,6 +16,8 @@ import re
 from dataclasses import dataclass
 from pathlib import Path
 
+from geodesy_preprocessing.common.case_layout import optional_case_layout
+
 
 _CASE_NAME = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.-]*\Z")
 _POLARIZATION = re.compile(r"[A-Z0-9]+\Z")
@@ -26,17 +28,19 @@ _DEFAULT_KEYS = {
     "min_buffer_coverage",
 }
 _CASE_KEYS = _DEFAULT_KEYS | {
+    "project",
+    "processing_root",
     "registered_stack",
     "geometry_dir",
     "kml_file",
     "kml_placemark",
     "output_dir",
+    "figure_dir",
 }
 _REQUIRED = {
     "registered_stack",
     "geometry_dir",
     "kml_file",
-    "output_dir",
     "buffer_km",
     "polarizations",
     "require_full_aoi_coverage",
@@ -59,6 +63,9 @@ class GammaRadarCropConfig:
     polarizations: tuple[str, ...] | None
     require_full_aoi_coverage: bool
     min_buffer_coverage: float
+    case_root: Path | None = None
+    processing_root: Path | None = None
+    figure_dir: Path | None = None
 
 
 def _reject_unknown(
@@ -135,7 +142,11 @@ def load_crop_config(path: Path, case: str) -> GammaRadarCropConfig:
     _reject_unknown(section, _CASE_KEYS, source)
     values = dict(defaults)
     values.update((key, value.strip()) for key, value in section.items())
-    missing = sorted(key for key in _REQUIRED if not values.get(key))
+    layout = optional_case_layout(project_root, values)
+    required = set(_REQUIRED)
+    if layout is None:
+        required.add("output_dir")
+    missing = sorted(key for key in required if not values.get(key))
     if missing:
         raise ValueError(f"{source}: [{section_name}] missing keys: {', '.join(missing)}")
 
@@ -150,15 +161,37 @@ def load_crop_config(path: Path, case: str) -> GammaRadarCropConfig:
         value = Path(values[key]).expanduser()
         return (value if value.is_absolute() else project_root / value).resolve()
 
+    registered_stack = resolved("registered_stack")
+    geometry_dir = resolved("geometry_dir")
+    kml_file = resolved("kml_file")
+    output_dir = (
+        resolved("output_dir")
+        if values.get("output_dir", "").strip()
+        else layout.product("RSLC_SUBSET")  # type: ignore[union-attr]
+    )
+    figure_dir = (
+        resolved("figure_dir")
+        if values.get("figure_dir", "").strip()
+        else (layout.figure("RSLC_SUBSET") if layout is not None else output_dir)
+    )
+    if layout is not None:
+        registered_stack = layout.require_processing_path(
+            registered_stack, "registered_stack"
+        )
+        geometry_dir = layout.require_processing_path(geometry_dir, "geometry_dir")
+        output_dir = layout.require_processing_path(output_dir, "output_dir")
+        figure_dir = layout.require_processing_path(figure_dir, "figure_dir")
+        kml_file = layout.require_project_input(kml_file, "kml_file")
+
     placemark = values.get("kml_placemark", "").strip() or None
     return GammaRadarCropConfig(
         name=case,
         project_root=project_root,
-        registered_stack=resolved("registered_stack"),
-        geometry_dir=resolved("geometry_dir"),
-        kml_file=resolved("kml_file"),
+        registered_stack=registered_stack,
+        geometry_dir=geometry_dir,
+        kml_file=kml_file,
         kml_placemark=placemark,
-        output_dir=resolved("output_dir"),
+        output_dir=output_dir,
         buffer_km=buffer_km,
         polarizations=_polarizations(values["polarizations"], source),
         require_full_aoi_coverage=_boolean(
@@ -167,6 +200,9 @@ def load_crop_config(path: Path, case: str) -> GammaRadarCropConfig:
             source,
         ),
         min_buffer_coverage=minimum,
+        case_root=None if layout is None else layout.case_root,
+        processing_root=None if layout is None else layout.processing_root,
+        figure_dir=figure_dir,
     )
 
 

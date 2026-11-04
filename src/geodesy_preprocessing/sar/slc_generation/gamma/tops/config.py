@@ -17,6 +17,8 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
+from geodesy_preprocessing.common.case_layout import optional_case_layout
+
 
 _CASE_NAME = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.-]*")
 _PROJECT_KEYS = {"root"}
@@ -26,11 +28,21 @@ _DEFAULT_KEYS = {
     "azimuth_looks",
     "polarization",
     "workflow",
+    "burst_coverage_plot",
 }
-_CASE_KEYS = _DEFAULT_KEYS | {"raw_dir", "slc_dir", "images", "burst_table"}
-_REQUIRED_CASE_KEYS = {
+_CASE_KEYS = _DEFAULT_KEYS | {
+    "project",
+    "processing_root",
     "raw_dir",
     "slc_dir",
+    "figure_dir",
+    "images",
+    "burst_table",
+    "roi_file",
+    "reference_selector",
+}
+_REQUIRED_CASE_KEYS = {
+    "raw_dir",
     "images",
     "burst_table",
     "opod_dir",
@@ -55,6 +67,12 @@ class GammaTopsSlcCase:
     azimuth_looks: int
     polarization: str
     workflow_flag: int
+    roi_file: Path | None
+    reference_selector: str | None
+    burst_coverage_plot: bool
+    case_root: Path | None = None
+    processing_root: Path | None = None
+    figure_dir: Path | None = None
 
 
 SlcConfigCase = GammaTopsSlcCase
@@ -80,12 +98,30 @@ def _positive_integer(value: str, name: str, source: Path) -> int:
     return parsed
 
 
+def _boolean(value: str, name: str, source: Path) -> bool:
+    normalized = value.strip().lower()
+    choices = {
+        "true": True,
+        "yes": True,
+        "1": True,
+        "false": False,
+        "no": False,
+        "0": False,
+    }
+    try:
+        return choices[normalized]
+    except KeyError as error:
+        raise ValueError(f"{source}: {name} must be true or false") from error
+
+
 def _resolve(root: Path, value: str) -> Path:
     path = Path(value).expanduser()
     return (path if path.is_absolute() else root / path).resolve()
 
 
-def load_slc_config(path: str | Path) -> tuple[SlcConfigCase, ...]:
+def load_slc_config(
+    path: str | Path, case_name: str | None = None
+) -> tuple[SlcConfigCase, ...]:
     """Load ordered named cases from one strict project-local INI-style file."""
 
     source = Path(path).expanduser().resolve(strict=True)
@@ -122,10 +158,22 @@ def load_slc_config(path: str | Path) -> tuple[SlcConfigCase, ...]:
             f"{source}: unsupported section [{invalid_sections[0]}]; expected [case:name]"
         )
 
+    case_sections = [
+        name for name in parser.sections() if name.startswith("case:")
+    ]
+    if case_name is not None:
+        requested = f"case:{case_name}"
+        if requested not in case_sections:
+            available = ", ".join(
+                name.removeprefix("case:").strip() for name in case_sections
+            )
+            raise ValueError(
+                f"unknown SLC case {case_name!r}; available cases: {available}"
+            )
+        case_sections = [requested]
+
     cases: list[SlcConfigCase] = []
-    for section_name in parser.sections():
-        if not section_name.startswith("case:"):
-            continue
+    for section_name in case_sections:
         name = section_name.removeprefix("case:").strip()
         if not _CASE_NAME.fullmatch(name):
             raise ValueError(f"{source}: unsafe or empty SLC case name: {name!r}")
@@ -133,7 +181,11 @@ def load_slc_config(path: str | Path) -> tuple[SlcConfigCase, ...]:
         _reject_unknown(section, _CASE_KEYS, source)
         values = dict(defaults)
         values.update((key, value.strip()) for key, value in section.items())
-        missing = sorted(key for key in _REQUIRED_CASE_KEYS if not values.get(key))
+        layout = optional_case_layout(project_root, values)
+        required = set(_REQUIRED_CASE_KEYS)
+        if layout is None:
+            required.add("slc_dir")
+        missing = sorted(key for key in required if not values.get(key))
         if missing:
             raise ValueError(
                 f"{source}: [{section_name}] missing keys: {', '.join(missing)}"
@@ -145,14 +197,43 @@ def load_slc_config(path: str | Path) -> tuple[SlcConfigCase, ...]:
                 f"{source}: [{section_name}] workflow must be safe/zip or 1/0"
             )
         opod_text = values["opod_dir"]
+        roi_text = values.get("roi_file", "").strip()
+        reference_selector = values.get("reference_selector", "").strip()
+        raw_dir = _resolve(project_root, values["raw_dir"])
+        slc_text = values.get("slc_dir", "").strip()
+        slc_dir = (
+            _resolve(project_root, slc_text)
+            if slc_text
+            else layout.product("SLC")  # type: ignore[union-attr]
+        )
+        opod_dir = None if opod_text == "-" else _resolve(project_root, opod_text)
+        images_file = _resolve(project_root, values["images"])
+        burst_table = _resolve(project_root, values["burst_table"])
+        roi_file = _resolve(project_root, roi_text) if roi_text else None
+        figure_text = values.get("figure_dir", "").strip()
+        figure_dir = (
+            _resolve(project_root, figure_text)
+            if figure_text
+            else (layout.figure("SLC") if layout is not None else slc_dir)
+        )
+        if layout is not None:
+            raw_dir = layout.require_project_input(raw_dir, "raw_dir")
+            slc_dir = layout.require_processing_path(slc_dir, "slc_dir")
+            figure_dir = layout.require_processing_path(figure_dir, "figure_dir")
+            if opod_dir is not None:
+                opod_dir = layout.require_project_input(opod_dir, "opod_dir")
+            images_file = layout.require_project_input(images_file, "images")
+            burst_table = layout.require_project_input(burst_table, "burst_table")
+            if roi_file is not None:
+                roi_file = layout.require_project_input(roi_file, "roi_file")
         cases.append(
             SlcConfigCase(
                 name=name,
-                raw_dir=_resolve(project_root, values["raw_dir"]),
-                slc_dir=_resolve(project_root, values["slc_dir"]),
-                opod_dir=None if opod_text == "-" else _resolve(project_root, opod_text),
-                images_file=_resolve(project_root, values["images"]),
-                burst_table=_resolve(project_root, values["burst_table"]),
+                raw_dir=raw_dir,
+                slc_dir=slc_dir,
+                opod_dir=opod_dir,
+                images_file=images_file,
+                burst_table=burst_table,
                 range_looks=_positive_integer(
                     values["range_looks"], "range_looks", source
                 ),
@@ -161,6 +242,16 @@ def load_slc_config(path: str | Path) -> tuple[SlcConfigCase, ...]:
                 ),
                 polarization=values["polarization"],
                 workflow_flag=workflow_values[workflow_text],
+                roi_file=roi_file,
+                reference_selector=reference_selector or None,
+                burst_coverage_plot=_boolean(
+                    values.get("burst_coverage_plot", "true"),
+                    "burst_coverage_plot",
+                    source,
+                ),
+                case_root=None if layout is None else layout.case_root,
+                processing_root=None if layout is None else layout.processing_root,
+                figure_dir=figure_dir,
             )
         )
     if not cases:

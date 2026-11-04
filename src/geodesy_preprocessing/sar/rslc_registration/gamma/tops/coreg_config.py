@@ -17,6 +17,8 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
+from geodesy_preprocessing.common.case_layout import optional_case_layout
+
 
 _CASE_NAME = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.-]*")
 _DEFAULT_KEYS = {
@@ -24,9 +26,10 @@ _DEFAULT_KEYS = {
     "phase_stdev_threshold", "id_mode", "npoly", "bridge_mode",
 }
 _CASE_KEYS = _DEFAULT_KEYS | {
-    "slc_dir", "dem_geocode_dir", "output_dir", "reference", "images",
+    "project", "processing_root", "slc_dir", "dem_geocode_dir", "output_dir",
+    "figure_dir", "reference", "images",
 }
-_REQUIRED = _CASE_KEYS
+_REQUIRED = _CASE_KEYS - {"project", "processing_root", "output_dir", "figure_dir"}
 
 
 @dataclass(frozen=True)
@@ -47,6 +50,9 @@ class GammaTopsCoregCase:
     id_mode: str
     npoly: int
     bridge_mode: str
+    case_root: Path | None = None
+    processing_root: Path | None = None
+    figure_dir: Path | None = None
 
 
 CoregConfigCase = GammaTopsCoregCase
@@ -78,7 +84,9 @@ def _number(value: str, label: str, source: Path) -> float:
     return parsed
 
 
-def load_coreg_config(path: str | Path) -> tuple[CoregConfigCase, ...]:
+def load_coreg_config(
+    path: str | Path, case_name: str | None = None
+) -> tuple[CoregConfigCase, ...]:
     """Load ordered S1-05 cases from one strict project-local configuration."""
 
     source = Path(path).expanduser().resolve(strict=True)
@@ -99,12 +107,20 @@ def load_coreg_config(path: str | Path) -> tuple[CoregConfigCase, ...]:
     if parser.has_section("defaults"):
         _reject_unknown(parser["defaults"], _DEFAULT_KEYS, source)
         defaults.update((key, value.strip()) for key, value in parser["defaults"].items())
+    invalid = [
+        name for name in parser.sections()
+        if name not in {"project", "defaults"} and not name.startswith("case:")
+    ]
+    if invalid:
+        raise ValueError(f"{source}: unsupported section [{invalid[0]}]")
+    case_sections = [name for name in parser.sections() if name.startswith("case:")]
+    if case_name is not None:
+        requested = f"case:{case_name}"
+        if requested not in case_sections:
+            raise ValueError(f"unknown coregistration case {case_name!r}")
+        case_sections = [requested]
     cases: list[CoregConfigCase] = []
-    for section_name in parser.sections():
-        if section_name in {"project", "defaults"}:
-            continue
-        if not section_name.startswith("case:"):
-            raise ValueError(f"{source}: unsupported section [{section_name}]")
+    for section_name in case_sections:
         name = section_name.removeprefix("case:").strip()
         if not _CASE_NAME.fullmatch(name):
             raise ValueError(f"{source}: unsafe or empty case name: {name!r}")
@@ -112,7 +128,11 @@ def load_coreg_config(path: str | Path) -> tuple[CoregConfigCase, ...]:
         _reject_unknown(section, _CASE_KEYS, source)
         values = dict(defaults)
         values.update((key, value.strip()) for key, value in section.items())
-        missing = sorted(key for key in _REQUIRED if not values.get(key))
+        layout = optional_case_layout(root, values)
+        required = set(_REQUIRED)
+        if layout is None:
+            required.add("output_dir")
+        missing = sorted(key for key in required if not values.get(key))
         if missing:
             raise ValueError(f"{source}: [{section_name}] missing keys: {', '.join(missing)}")
         bridge = values["bridge_mode"]
@@ -129,14 +149,34 @@ def load_coreg_config(path: str | Path) -> tuple[CoregConfigCase, ...]:
             value = Path(values[key]).expanduser()
             return (value if value.is_absolute() else root / value).resolve()
 
+        slc_dir = resolved("slc_dir")
+        dem_geocode_dir = resolved("dem_geocode_dir")
+        images_file = resolved("images")
+        output_dir = (
+            resolved("output_dir")
+            if values.get("output_dir", "").strip()
+            else layout.product("RSLC")  # type: ignore[union-attr]
+        )
+        figure_dir = (
+            resolved("figure_dir")
+            if values.get("figure_dir", "").strip()
+            else (layout.figure("RSLC") if layout is not None else output_dir)
+        )
+        if layout is not None:
+            slc_dir = layout.require_processing_path(slc_dir, "slc_dir")
+            dem_geocode_dir = layout.require_processing_path(dem_geocode_dir, "dem_geocode_dir")
+            output_dir = layout.require_processing_path(output_dir, "output_dir")
+            figure_dir = layout.require_processing_path(figure_dir, "figure_dir")
+            images_file = layout.require_project_input(images_file, "images")
+
         cases.append(
             CoregConfigCase(
                 name=name,
-                slc_dir=resolved("slc_dir"),
-                dem_geocode_dir=resolved("dem_geocode_dir"),
-                output_dir=resolved("output_dir"),
+                slc_dir=slc_dir,
+                dem_geocode_dir=dem_geocode_dir,
+                output_dir=output_dir,
                 reference=values["reference"],
-                images_file=resolved("images"),
+                images_file=images_file,
                 range_looks=_integer(values["range_looks"], "range looks", source),
                 azimuth_looks=_integer(values["azimuth_looks"], "azimuth looks", source),
                 coherence_threshold=_number(values["coherence_threshold"], "coherence threshold", source),
@@ -145,6 +185,9 @@ def load_coreg_config(path: str | Path) -> tuple[CoregConfigCase, ...]:
                 id_mode=id_mode,
                 npoly=npoly,
                 bridge_mode=bridge,
+                case_root=None if layout is None else layout.case_root,
+                processing_root=None if layout is None else layout.processing_root,
+                figure_dir=figure_dir,
             )
         )
     if not cases:

@@ -24,14 +24,16 @@ def _main(arguments: Sequence[str] | None, *, legacy: bool) -> int:
         prog=(
             "geodesy-pre-s1-coreg"
             if legacy
-            else "geodesy-pre-gamma-sar-tops-coreg"
+            else "geodesy-pre-gamma-coreg-tops"
         )
     )
     parser.add_argument("--config", required=True, type=Path)
     parser.add_argument("--case")
     options = parser.parse_args(arguments)
     try:
-        case = select_coreg_case(load_coreg_config(options.config), options.case)
+        case = select_coreg_case(
+            load_coreg_config(options.config, case_name=options.case), options.case
+        )
     except (FileNotFoundError, OSError, ValueError) as error:
         print(f"ERROR: {error}", file=sys.stderr)
         return 2

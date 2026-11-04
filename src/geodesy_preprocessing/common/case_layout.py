@@ -195,6 +195,11 @@ class PreprocessingCaseLayout:
 
         return validate_within_root(Path(path), self.project_root, label)
 
+    def require_processing_path(self, path: str | Path, label: str) -> Path:
+        """Require a configurable result path to remain below the method root."""
+
+        return validate_within_root(Path(path), self.processing_root, label)
+
 
 def optional_case_layout(
     project_root: Path, values: dict[str, str]

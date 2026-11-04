@@ -24,14 +24,16 @@ def _main(arguments: Sequence[str] | None, *, legacy: bool) -> int:
         prog=(
             "geodesy-pre-s1-geo-ref"
             if legacy
-            else "geodesy-pre-gamma-sar-tops-geo-ref"
+            else "geodesy-pre-gamma-geo-ref-tops"
         )
     )
     parser.add_argument("--config", required=True, type=Path)
     parser.add_argument("--case")
     options = parser.parse_args(arguments)
     try:
-        selected = select_geo_ref_case(load_geo_ref_config(options.config), options.case)
+        selected = select_geo_ref_case(
+            load_geo_ref_config(options.config, case_name=options.case), options.case
+        )
     except (FileNotFoundError, OSError, ValueError) as error:
         print(f"ERROR: {error}", file=sys.stderr)
         return 2

@@ -32,7 +32,7 @@ from .runner import OtherSarCommandError, run_slc_batch
 
 def _parser(*, legacy: bool) -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        prog="geodesy-pre-sar-slc" if legacy else "geodesy-pre-gamma-sar-slc",
+        prog="geodesy-pre-sar-slc" if legacy else "geodesy-pre-gamma-slc-grid",
         description="Convert supported radar-grid vendor products to GAMMA SLC.",
     )
     parser.add_argument("--config", required=True, type=Path)
@@ -77,7 +77,7 @@ def _main(arguments: Sequence[str] | None, *, legacy: bool) -> int:
     selector = select_other_sar_slc_case if legacy else select_gamma_radar_slc_case
 
     try:
-        cases = loader(options.config)
+        cases = loader(options.config, case_name=options.case)
         case = selector(cases, options.case)
         plan = build_slc_plan(case)
         if options.dry_run:

@@ -22,6 +22,7 @@ from datetime import datetime
 from pathlib import Path
 from types import MappingProxyType
 
+from geodesy_preprocessing.common.case_layout import optional_case_layout
 from geodesy_preprocessing.common.paths import validate_within_root
 
 _CASE_NAME = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.-]*")
@@ -47,7 +48,14 @@ _ADAPTER_KEYS = {
     "adapter.radiometric_calibration",
     "adapter.noise_subtraction",
 }
-_CASE_KEYS = {"sensor", "raw_dir", "slc_dir"} | _VALUE_KEYS | _ADAPTER_KEYS
+_CASE_KEYS = {
+    "project",
+    "processing_root",
+    "sensor",
+    "raw_dir",
+    "slc_dir",
+    "figure_dir",
+} | _VALUE_KEYS | _ADAPTER_KEYS
 _SHELL_OPERATORS = re.compile(r"[;&|<>`\n\r]|\$\(")
 
 
@@ -68,6 +76,9 @@ class GammaRadarSlcCase:
     adapter_options: Mapping[str, str] = field(
         default_factory=lambda: MappingProxyType({})
     )
+    case_root: Path | None = None
+    processing_root: Path | None = None
+    figure_dir: Path | None = None
 
 
 OtherSarSlcCase = GammaRadarSlcCase
@@ -136,7 +147,11 @@ def _polarizations(value: str, source: Path) -> tuple[str, ...]:
 
 
 def _load_sar_slc_config(
-    path: str | Path, *, default_workflow_task: str, sensors: tuple[str, ...]
+    path: str | Path,
+    *,
+    default_workflow_task: str,
+    sensors: tuple[str, ...],
+    case_name: str | None = None,
 ) -> tuple[GammaRadarSlcCase, ...]:
 
     source = Path(path).expanduser().resolve(strict=True)
@@ -170,10 +185,22 @@ def _load_sar_slc_config(
     if invalid:
         raise ValueError(f"{source}: unsupported section [{invalid[0]}]")
 
+    case_sections = [
+        name for name in parser.sections() if name.startswith("case:")
+    ]
+    if case_name is not None:
+        requested = f"case:{case_name}"
+        if requested not in case_sections:
+            available = ", ".join(
+                name.removeprefix("case:").strip() for name in case_sections
+            )
+            raise ValueError(
+                f"unknown Other-SAR case {case_name!r}; available cases: {available}"
+            )
+        case_sections = [requested]
+
     cases: list[GammaRadarSlcCase] = []
-    for section_name in parser.sections():
-        if not section_name.startswith("case:"):
-            continue
+    for section_name in case_sections:
         name = section_name.removeprefix("case:").strip()
         if not _CASE_NAME.fullmatch(name):
             raise ValueError(f"{source}: unsafe or empty Other-SAR case name: {name!r}")
@@ -181,7 +208,11 @@ def _load_sar_slc_config(
         _reject_unknown(section, _CASE_KEYS, source)
         values = dict(defaults)
         values.update((key, value.strip()) for key, value in section.items())
-        missing = [key for key in ("sensor", "raw_dir", "slc_dir") if not values.get(key)]
+        layout = optional_case_layout(project_root, values)
+        required = ["sensor", "raw_dir"]
+        if layout is None:
+            required.append("slc_dir")
+        missing = [key for key in required if not values.get(key)]
         if missing:
             raise ValueError(f"{source}: [{section_name}] missing keys: {', '.join(missing)}")
         sensor = values["sensor"].lower()
@@ -222,13 +253,34 @@ def _load_sar_slc_config(
             if values.get(key)
         }
         images_value = values.get("images_file", f"images_{sensor}")
+        raw_dir = _resolve_project_path(project_root, values["raw_dir"], "raw")
+        slc_text = values.get("slc_dir", "").strip()
+        slc_dir = (
+            _resolve_project_path(project_root, slc_text, "SLC")
+            if slc_text
+            else layout.product("SLC")  # type: ignore[union-attr]
+        )
+        images_file = _resolve_project_path(project_root, images_value, "images")
+        if layout is not None and "images_file" not in values:
+            images_file = slc_dir / f"images_{sensor}"
+        figure_text = values.get("figure_dir", "").strip()
+        figure_dir = (
+            _resolve_project_path(project_root, figure_text, "figure_dir")
+            if figure_text
+            else (layout.figure("SLC") if layout is not None else slc_dir)
+        )
+        if layout is not None:
+            raw_dir = layout.require_project_input(raw_dir, "raw_dir")
+            slc_dir = layout.require_processing_path(slc_dir, "slc_dir")
+            images_file = layout.require_processing_path(images_file, "images_file")
+            figure_dir = layout.require_processing_path(figure_dir, "figure_dir")
         cases.append(
             GammaRadarSlcCase(
                 name=name,
                 sensor=sensor,
-                raw_dir=_resolve_project_path(project_root, values["raw_dir"], "raw"),
-                slc_dir=_resolve_project_path(project_root, values["slc_dir"], "SLC"),
-                images_file=_resolve_project_path(project_root, images_value, "images"),
+                raw_dir=raw_dir,
+                slc_dir=slc_dir,
+                images_file=images_file,
                 polarizations=_polarizations(values.get("polarizations", "HH"), source),
                 range_looks=_positive_integer(
                     values.get("range_looks", "10"), "range_looks", source
@@ -239,6 +291,9 @@ def _load_sar_slc_config(
                 commands=MappingProxyType(command_values),
                 workflow_task=values.get("workflow_task", default_workflow_task),
                 adapter_options=MappingProxyType(adapter_options),
+                case_root=None if layout is None else layout.case_root,
+                processing_root=None if layout is None else layout.processing_root,
+                figure_dir=figure_dir,
             )
         )
     if not cases:
@@ -246,23 +301,29 @@ def _load_sar_slc_config(
     return tuple(cases)
 
 
-def load_gamma_radar_slc_config(path: str | Path) -> tuple[GammaRadarSlcCase, ...]:
+def load_gamma_radar_slc_config(
+    path: str | Path, case_name: str | None = None
+) -> tuple[GammaRadarSlcCase, ...]:
     """Load GAMMA radar-grid cases using the permanent Workflow task identity."""
 
     return _load_sar_slc_config(
         path,
         default_workflow_task="PRE_GAMMA_SAR_SLC",
         sensors=_GAMMA_SENSORS,
+        case_name=case_name,
     )
 
 
-def load_other_sar_slc_config(path: str | Path) -> tuple[OtherSarSlcCase, ...]:
+def load_other_sar_slc_config(
+    path: str | Path, case_name: str | None = None
+) -> tuple[OtherSarSlcCase, ...]:
     """Load compatibility cases using the historical Workflow task identity."""
 
     return _load_sar_slc_config(
         path,
         default_workflow_task="PRE_OTHER_SAR_SLC",
         sensors=_LEGACY_SENSORS,
+        case_name=case_name,
     )
 
 
