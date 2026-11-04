@@ -309,6 +309,7 @@ def run_gamma_radar_geo_ref(
 
         manifest = {
             "schema_version": 1,
+            "status": "complete",
             "backend": "gamma",
             "geometry_type": "RADAR_GRID",
             "reference_date": plan.case.reference_date,
@@ -319,10 +320,20 @@ def run_gamma_radar_geo_ref(
             },
             "gamma_version": run_environment.get("GAMMA_VERSION", "unknown"),
             "input_signature": signature,
+            "processing_root": (
+                str(plan.case.processing_root)
+                if plan.case.processing_root is not None
+                else None
+            ),
             "inputs": input_records,
             "commands": [_recorded_command(command, staging) for command in commands],
             "outputs": [
                 str(path.relative_to(output)) for path in plan.expected_outputs
+            ],
+            "required_products": [
+                str(path.relative_to(output))
+                for path in plan.expected_outputs
+                if path != plan.manifest
             ],
         }
         staged_manifest = _staged(plan.manifest, output, staging)
