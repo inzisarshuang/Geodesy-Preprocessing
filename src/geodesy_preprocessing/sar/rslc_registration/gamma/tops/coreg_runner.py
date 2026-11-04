@@ -14,17 +14,21 @@
 from __future__ import annotations
 
 import fnmatch
+import hashlib
+import json
 import os
 import shutil
 import subprocess
 import sys
 import tempfile
 import time
+import uuid
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
 from geodesy_preprocessing.common.progress import emit_progress
+from geodesy_preprocessing.common.reuse import ReuseState, classify_output
 from geodesy_preprocessing.sar.common.models import (
     BackendIdentity,
     GeometryType,
@@ -44,10 +48,19 @@ from .coreg_plan import CoregPlan
 class CoregCommandError(RuntimeError):
     """Failure of the external stack-coregistration command."""
 
-    def __init__(self, exit_code: int, command: Sequence[str]) -> None:
+    def __init__(
+        self,
+        exit_code: int,
+        command: Sequence[str],
+        stderr_log: Path | None = None,
+    ) -> None:
         self.exit_code = exit_code
         self.command = tuple(command)
-        super().__init__(f"coregister command exited with code {exit_code}")
+        self.stderr_log = stderr_log
+        message = f"coregister command exited with code {exit_code}"
+        if stderr_log is not None:
+            message += f"; see {stderr_log.resolve()}"
+        super().__init__(message)
 
 
 @dataclass(frozen=True)
@@ -71,6 +84,43 @@ class GammaTopsCoregResult:
 
 
 CoregBatchResult = GammaTopsCoregResult
+
+
+def _input_signature(plan: CoregPlan) -> str:
+    paths = (plan.images_file, plan.height_file) + tuple(
+        path for item in plan.items for path in item.sources
+    )
+    records = []
+    for path in paths:
+        stat = path.stat()
+        records.append((str(path), stat.st_size, stat.st_mtime_ns))
+    payload = {
+        "inputs": records,
+        "reference": plan.reference,
+        "range_looks": plan.range_looks,
+        "azimuth_looks": plan.azimuth_looks,
+        "coherence_threshold": plan.coherence_threshold,
+        "fraction_threshold": plan.fraction_threshold,
+        "phase_stdev_threshold": plan.phase_stdev_threshold,
+        "id_mode": plan.id_mode,
+        "npoly": plan.npoly,
+        "bridge_mode": plan.bridge_mode,
+    }
+    encoded = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()
+    return hashlib.sha256(encoded).hexdigest()
+
+
+def _validate_complete_stack(output: Path, manifest: dict[str, object]) -> bool:
+    products = manifest.get("required_products")
+    if not isinstance(products, list) or not products:
+        return False
+    return all(
+        isinstance(value, str)
+        and ".." not in Path(value).parts
+        and (output / value).is_file()
+        and (output / value).stat().st_size > 0
+        for value in products
+    )
 
 
 def _publish_registration_manifest(plan: CoregPlan, native_root: Path) -> Path:
@@ -229,21 +279,35 @@ class CoregRunner:
         environment["PATH"] = os.pathsep.join(
             (str(self._python_bin.parent), environment.get("PATH", ""))
         )
-        process = subprocess.Popen(resolved, cwd=cwd, env=environment)
+        log_dir = cwd / "logs"
+        log_dir.mkdir(exist_ok=True)
+        stdout_path = log_dir / "coregister.stdout.log"
+        stderr_path = log_dir / "coregister.stderr.log"
         reported: set[str] = set()
-        while process.poll() is None:
-            for date in self._completed_dates(plan, cwd):
-                if date not in reported:
-                    item_sink(date)
-                    reported.add(date)
-            time.sleep(self._poll_seconds)
-        exit_code = process.wait()
+        with stdout_path.open("w", encoding="utf-8") as stdout, stderr_path.open(
+            "w", encoding="utf-8"
+        ) as stderr:
+            process = subprocess.Popen(
+                resolved,
+                cwd=cwd,
+                env=environment,
+                stdout=stdout,
+                stderr=stderr,
+                text=True,
+            )
+            while process.poll() is None:
+                for date in self._completed_dates(plan, cwd):
+                    if date not in reported:
+                        item_sink(date)
+                        reported.add(date)
+                time.sleep(self._poll_seconds)
+            exit_code = process.wait()
         for date in self._completed_dates(plan, cwd):
             if date not in reported:
                 item_sink(date)
                 reported.add(date)
         if exit_code != 0:
-            raise CoregCommandError(exit_code, resolved)
+            raise CoregCommandError(exit_code, resolved, stderr_path)
         return CoregCommandResult("coregister", tuple(resolved), 0)
 
     def run_stack(
@@ -311,6 +375,26 @@ def _failed_staging_destination(staging: Path) -> Path | None:
     return diagnostics / staging.name
 
 
+def _retain_failure_diagnostics(staging: Path, output: Path) -> Path | None:
+    """Keep failure logs in Workflow diagnostics or beside the intended stack."""
+
+    workflow_destination = _failed_staging_destination(staging)
+    if workflow_destination is not None:
+        shutil.move(str(staging), str(workflow_destination))
+        return workflow_destination.resolve()
+    logs = tuple(path for path in staging.rglob("*.log") if path.is_file())
+    if not logs:
+        return None
+    destination = (
+        output.parent / f"{output.name}.failed-logs-{uuid.uuid4().hex[:8]}"
+    )
+    for source in logs:
+        target = destination / source.relative_to(staging)
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(source, target)
+    return destination.resolve()
+
+
 DEFAULT_GAMMA_TOPS_COREG_TASK = "PRE_GAMMA_SAR_TOPS_COREG"
 
 
@@ -327,7 +411,14 @@ def run_gamma_tops_coreg(
         item.date for item in sorted(plan.items, key=lambda value: value.date) if item.date != plan.reference
     )
 
-    def send(event: str, date: str, index: int, status: str, stage: str) -> None:
+    def send(
+        event: str,
+        date: str,
+        index: int,
+        status: str,
+        stage: str,
+        **details: object,
+    ) -> None:
         progress_sink(
             emit_progress(
                 event=event,
@@ -337,10 +428,18 @@ def run_gamma_tops_coreg(
                 total=len(order),
                 stage=stage,
                 status=status,
+                **details,
             )
         )
 
-    if plan.skip:
+    signature = _input_signature(plan)
+    reuse = classify_output(
+        plan.output_dir,
+        "completion.json",
+        signature,
+        _validate_complete_stack,
+    )
+    if reuse.state is ReuseState.COMPLETE:
         for index, date in enumerate(order, 1):
             send("item_started", date, index, "running", "discover")
             send("item_finished", date, index, "skipped", "discover")
@@ -356,6 +455,8 @@ def run_gamma_tops_coreg(
                 else None
             ),
         )
+    if reuse.state is not ReuseState.ABSENT:
+        raise FileExistsError(reuse.guidance)
 
     plan.output_dir.parent.mkdir(parents=True, exist_ok=True)
     staging = Path(
@@ -380,6 +481,25 @@ def run_gamma_tops_coreg(
                 f"RSLC destination appeared during execution: {plan.output_dir}"
             )
         _publish_registration_manifest(plan, staging)
+        required = [
+            path.relative_to(plan.output_dir).as_posix()
+            for path in plan.expected_outputs
+        ] + ["registered_stack.json"]
+        (staging / "completion.json").write_text(
+            json.dumps(
+                {
+                    "status": "complete",
+                    "input_signature": signature,
+                    "processing_root": str(plan.output_dir.parent),
+                    "required_products": required,
+                },
+                ensure_ascii=False,
+                sort_keys=True,
+                indent=2,
+            )
+            + "\n",
+            encoding="utf-8",
+        )
         os.replace(staging, plan.output_dir)
         return CoregBatchResult(
             len(completed),
@@ -390,16 +510,38 @@ def run_gamma_tops_coreg(
         )
     except BaseException as error:
         pending = next((date for date in order if date not in completed), order[-1])
-        send("item_finished", pending, order.index(pending) + 1, "failed", "coregister")
+        stderr_relative = (
+            error.stderr_log.relative_to(staging)
+            if isinstance(error, CoregCommandError)
+            and error.stderr_log is not None
+            and error.stderr_log.is_relative_to(staging)
+            else None
+        )
+        diagnostic = (
+            _retain_failure_diagnostics(staging, plan.output_dir)
+            if staging.exists()
+            else None
+        )
+        send(
+            "item_finished",
+            pending,
+            order.index(pending) + 1,
+            "failed",
+            "coregister",
+            failure_logs=None if diagnostic is None else str(diagnostic),
+        )
         if staging.exists():
-            diagnostic = _failed_staging_destination(staging)
-            if diagnostic is None:
-                shutil.rmtree(staging)
-            else:
-                try:
-                    shutil.move(str(staging), str(diagnostic))
-                except OSError as diagnostic_error:
-                    error.add_note(f"failed to retain staging at {diagnostic}: {diagnostic_error}")
+            shutil.rmtree(staging)
+        if (
+            isinstance(error, CoregCommandError)
+            and diagnostic is not None
+            and stderr_relative is not None
+        ):
+            raise CoregCommandError(
+                error.exit_code,
+                error.command,
+                diagnostic / stderr_relative,
+            ) from None
         raise
 
 

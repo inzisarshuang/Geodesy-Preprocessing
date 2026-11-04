@@ -91,7 +91,9 @@ def classify_output(
     manifest_path = output / manifest_name
     if not manifest_path.is_file() or manifest_path.is_symlink():
         return _decision(
-            ReuseState.INCOMPLETE, output, f"completion manifest is missing: {manifest_path}"
+            ReuseState.INCOMPLETE,
+            output,
+            f"incomplete output: completion manifest is missing: {manifest_path}",
         )
     try:
         payload = json.loads(manifest_path.read_text(encoding="utf-8"))

@@ -11,6 +11,8 @@
 
 from __future__ import annotations
 
+import hashlib
+import json
 import os
 import shutil
 import subprocess
@@ -19,7 +21,9 @@ from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from pathlib import Path
 
+from geodesy_preprocessing.common.case_layout import resolve_case_log_path
 from geodesy_preprocessing.common.progress import emit_progress
+from geodesy_preprocessing.common.reuse import ReuseState, classify_output
 
 from .models import CommandSpec
 from .publication import publish_images_table, publish_output_group
@@ -107,6 +111,36 @@ def _event(
     )
 
 
+def _scene_signature(plan: SlcBatchPlan, product: object) -> str:
+    source_files = getattr(product, "source_files")
+    records = []
+    for source in source_files:
+        stat = source.stat()
+        records.append((str(source), stat.st_size, stat.st_mtime_ns))
+    case = plan.case
+    payload = {
+        "sensor": case.sensor,
+        "date": getattr(product, "date"),
+        "sources": records,
+        "polarizations": case.polarizations,
+        "range_looks": case.range_looks,
+        "azimuth_looks": case.azimuth_looks,
+        "adapter_options": dict(case.adapter_options),
+        "commands": dict(case.commands),
+    }
+    encoded = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()
+    return hashlib.sha256(encoded).hexdigest()
+
+
+def _scene_products_valid(outputs: tuple[object, ...]) -> bool:
+    return all(
+        not output.destination.is_symlink()
+        and output.destination.is_file()
+        and output.destination.stat().st_size > 0
+        for output in outputs
+    )
+
+
 def run_gamma_radar_slc(
     plan: SlcBatchPlan,
     *,
@@ -135,11 +169,9 @@ def run_gamma_radar_slc(
             )
         )
         log_dir = (
-            staging_parent
-            / "LOG/PRE"
-            / task
-            / case.name
-            / product.date
+            resolve_case_log_path(case.case_root, task, case.name, product.date)
+            if case.case_root is not None
+            else staging_parent / "LOG/PRE" / task / case.name / product.date
         )
         log_dir.mkdir(parents=True, exist_ok=True)
         stdout_log = log_dir / "stdout.log"
@@ -157,7 +189,25 @@ def run_gamma_radar_slc(
             )
             prepared = plan.adapter.prepare(product, staging)
             scene = plan.adapter.build_scene_plan(case, prepared)
-            if scene.state == "skip":
+            signature = _scene_signature(plan, product)
+            completion_dir = case.slc_dir / ".completion" / product.date
+            reuse = classify_output(
+                completion_dir,
+                "completion.json",
+                signature,
+                lambda _root, _manifest: _scene_products_valid(scene.outputs),
+            )
+            existing_outputs = tuple(
+                output.destination.exists() or output.destination.is_symlink()
+                for output in scene.outputs
+            )
+            if reuse.state is ReuseState.ABSENT and any(existing_outputs):
+                raise FileExistsError(
+                    f"incomplete output group for {product.date}: completion manifest "
+                    f"is missing. Delete the scene products after inspection, or choose "
+                    "a different output directory; existing scientific products were not modified"
+                )
+            if reuse.state is ReuseState.COMPLETE:
                 skipped += 1
                 _event(
                     progress_sink,
@@ -170,6 +220,8 @@ def run_gamma_radar_slc(
                     stage="publish",
                 )
                 continue
+            if reuse.state is not ReuseState.ABSENT:
+                raise FileExistsError(reuse.guidance)
             with stdout_log.open("w", encoding="utf-8") as stdout, stderr_log.open(
                 "w", encoding="utf-8"
             ) as stderr:
@@ -206,6 +258,33 @@ def run_gamma_radar_slc(
                         )
             plan.adapter.finalize_scene(prepared, scene)
             publish_output_group(staging, scene.outputs)
+            completion_dir.parent.mkdir(parents=True, exist_ok=True)
+            staged_completion = Path(
+                tempfile.mkdtemp(
+                    prefix=f".{product.date}.",
+                    suffix=".completion-stage",
+                    dir=completion_dir.parent,
+                )
+            )
+            (staged_completion / "completion.json").write_text(
+                json.dumps(
+                    {
+                        "status": "complete",
+                        "input_signature": signature,
+                        "processing_root": str(case.processing_root),
+                        "required_products": [
+                            str(output.destination.relative_to(case.slc_dir))
+                            for output in scene.outputs
+                        ],
+                    },
+                    ensure_ascii=False,
+                    sort_keys=True,
+                    indent=2,
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            os.replace(staged_completion, completion_dir)
             completed += 1
             _event(
                 progress_sink,

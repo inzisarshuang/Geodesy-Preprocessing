@@ -1,7 +1,7 @@
 """Input identity and atomic publication for cropped registered stacks.
 
 功能概述:
-    对裁剪输入生成稳定摘要，并在同一文件系统内原子发布或强制替换完整目录。
+    对裁剪输入生成稳定摘要，并在同一文件系统内原子替换发布完整目录。
 
 函数说明:
     ``crop_aoi_digest`` 计算原始 KML 摘要；``crop_input_signature`` 计算配置和输入摘要；
@@ -13,8 +13,6 @@ from __future__ import annotations
 import hashlib
 import json
 import os
-import shutil
-import uuid
 from pathlib import Path
 
 from .plan import GammaRadarCropPlan
@@ -52,28 +50,17 @@ def crop_aoi_digest(plan: GammaRadarCropPlan) -> str:
     return _sha256(plan.config.kml_file)
 
 
-def atomic_publish_crop(staging: Path, output: Path, *, force: bool = False) -> None:
-    """Atomically publish one complete directory, restoring an old target on failure."""
+def atomic_publish_crop(staging: Path, output: Path) -> None:
+    """Atomically publish a new target without replacing existing science."""
 
     source = Path(staging).resolve(strict=True)
     destination = Path(output).resolve()
     destination.parent.mkdir(parents=True, exist_ok=True)
     if source.parent != destination.parent:
         raise ValueError("crop staging and output must have the same parent directory")
-    if destination.exists() and not force:
-        raise FileExistsError(f"crop output appeared during execution: {destination}")
-    backup: Path | None = None
-    if destination.exists():
-        backup = destination.parent / f".{destination.name}.{uuid.uuid4().hex}.backup"
-        os.replace(destination, backup)
-    try:
-        os.replace(source, destination)
-    except BaseException:
-        if backup is not None and backup.exists() and not destination.exists():
-            os.replace(backup, destination)
-        raise
-    if backup is not None:
-        shutil.rmtree(backup)
+    if destination.exists() or destination.is_symlink():
+        raise FileExistsError(f"crop destination appeared during execution: {destination}")
+    os.replace(source, destination)
 
 
 __all__ = ["atomic_publish_crop", "crop_aoi_digest", "crop_input_signature"]

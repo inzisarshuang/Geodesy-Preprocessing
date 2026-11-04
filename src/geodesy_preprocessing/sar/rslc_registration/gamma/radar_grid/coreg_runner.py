@@ -16,12 +16,14 @@ import hashlib
 import os
 import shutil
 import subprocess
+import sys
 import tempfile
 import uuid
 from collections.abc import Callable, Mapping, Sequence
 from pathlib import Path
 
 from geodesy_preprocessing.common.progress import emit_progress
+from geodesy_preprocessing.common.reuse import ReuseState, classify_output
 from geodesy_preprocessing.sar.common.models import (
     BackendIdentity,
     GeometryType,
@@ -39,7 +41,6 @@ from .coreg_plan import (
     GammaRadarCoregPlan,
     GammaRadarScenePlan,
 )
-from .publication import classify_stack_destination
 from .quality import classify_coreg_quality, parse_coreg_quality
 
 
@@ -108,6 +109,7 @@ def _input_signature(plan: GammaRadarCoregPlan) -> str:
         "range_looks": case.range_looks,
         "azimuth_looks": case.azimuth_looks,
         "refinement": case.refinement,
+        "quality_policy": case.quality_policy,
         "sar_mode": case.sar_mode,
         "offset_parameters": {
             "offset_polynomial_parameters": case.offset_polynomial_parameters,
@@ -169,7 +171,14 @@ def _run(
     environment: Mapping[str, str],
     log_dir: Path,
 ) -> tuple[str, ...]:
-    executable = shutil.which(command[0], path=environment.get("PATH"))
+    command_environment = dict(environment)
+    command_environment["PATH"] = os.pathsep.join(
+        (
+            str(Path(sys.executable).resolve().parent),
+            command_environment.get("PATH", ""),
+        )
+    )
+    executable = shutil.which(command[0], path=command_environment.get("PATH"))
     if executable is None:
         raise FileNotFoundError(f"required command not found in PATH: {command[0]}")
     resolved = (executable, *(str(value) for value in command[1:]))
@@ -182,7 +191,7 @@ def _run(
         completed = subprocess.run(
             resolved,
             cwd=cwd,
-            env=dict(environment),
+            env=command_environment,
             stdout=stdout,
             stderr=stderr,
             text=True,
@@ -246,9 +255,26 @@ def _publish_metadata(
             for value in command
         ]
 
+    statuses = {str(record["status"]) for record in quality_records.values()}
+    stack_quality_status = (
+        "failed"
+        if "failed" in statuses
+        else "warning"
+        if "warning" in statuses
+        else "complete"
+    )
     quality_path = staging / "quality.json"
     quality_path.write_text(
-        json.dumps({"scenes": quality_records}, indent=2, sort_keys=True) + "\n",
+        json.dumps(
+            {
+                "publication_policy": plan.case.quality_policy,
+                "stack_quality_status": stack_quality_status,
+                "scenes": quality_records,
+            },
+            indent=2,
+            sort_keys=True,
+        )
+        + "\n",
         encoding="utf-8",
     )
     provenance_path = staging / "provenance.json"
@@ -261,6 +287,7 @@ def _publish_metadata(
                 "frequency_label": plan.case.frequency,
                 "center_frequency_hz": plan.center_frequency_hz,
                 "input_signature": input_signature,
+                "quality_policy": plan.case.quality_policy,
                 "commands": [stable_command(command) for command in commands],
             },
             indent=2,
@@ -308,6 +335,43 @@ def _publish_metadata(
         provenance_path=Path("provenance.json"),
     )
     write_stack_manifest(manifest, staging / "registered_stack.json")
+    required_products = sorted(
+        path.relative_to(staging).as_posix()
+        for path in staging.rglob("*")
+        if path.is_file()
+        and path.stat().st_size > 0
+        and "logs" not in path.relative_to(staging).parts
+    )
+    (staging / "completion.json").write_text(
+        json.dumps(
+            {
+                "status": "complete",
+                "input_signature": input_signature,
+                "processing_root": str(plan.case.processing_root),
+                "required_products": required_products,
+            },
+            indent=2,
+            sort_keys=True,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+
+def _validate_complete_stack(output: Path, manifest: dict[str, object]) -> bool:
+    products = manifest.get("required_products")
+    if not isinstance(products, list) or not products:
+        return False
+    if not all(
+        isinstance(value, str)
+        and ".." not in Path(value).parts
+        and (output / value).is_file()
+        and (output / value).stat().st_size > 0
+        for value in products
+    ):
+        return False
+    read_stack_manifest(output / "registered_stack.json")
+    return True
 
 
 def run_gamma_radar_coreg(
@@ -318,24 +382,24 @@ def run_gamma_radar_coreg(
 ) -> RegistrationResult:
     """Run standard registration and atomically publish a quality-approved stack."""
 
-    state = classify_stack_destination(plan.case.output_dir)
     signature = _input_signature(plan)
-    if state == "complete":
-        provenance_path = plan.case.output_dir / "provenance.json"
-        try:
-            provenance = json.loads(provenance_path.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError) as error:
-            raise FileExistsError(
-                f"complete RSLC destination has invalid provenance: {plan.case.output_dir}"
-            ) from error
-        if provenance.get("input_signature") != signature:
-            raise FileExistsError("RSLC destination was produced from different inputs")
-        return _registration_result(plan.case.output_dir)
     run_environment = os.environ.copy()
     if environment:
         run_environment.update((str(key), str(value)) for key, value in environment.items())
     gamma_version = run_environment.get("GAMMA_VERSION", "unknown")
     output = plan.case.output_dir
+    reuse = classify_output(
+        output, "completion.json", signature, _validate_complete_stack
+    )
+    if reuse.state is ReuseState.COMPLETE:
+        return _registration_result(output)
+    if reuse.state is ReuseState.MISMATCH:
+        raise FileExistsError(
+            f"RSLC destination contains results from different inputs: {output}. "
+            "Delete it after inspection or choose a different output directory"
+        )
+    if reuse.state is ReuseState.INCOMPLETE:
+        raise FileExistsError(f"incomplete RSLC destination: {reuse.guidance}")
     output.parent.mkdir(parents=True, exist_ok=True)
     staging = Path(
         tempfile.mkdtemp(prefix=f".{output.name}-", suffix=".stage", dir=output.parent)
@@ -449,7 +513,7 @@ def run_gamma_radar_coreg(
                     "range_residual": parsed.range_residual,
                     "azimuth_residual": parsed.azimuth_residual,
                 }
-                if status == "failed":
+                if status == "failed" and plan.case.quality_policy == "strict":
                     raise ValueError(f"hard quality threshold failed for {identity}")
             else:
                 for planned_command in scene.commands:
@@ -497,7 +561,7 @@ def run_gamma_radar_coreg(
         _publish_metadata(
             plan, staging, quality_records, commands, gamma_version, signature
         )
-        if output.exists():
+        if output.exists() or output.is_symlink():
             raise FileExistsError(f"RSLC destination appeared during execution: {output}")
         os.replace(staging, output)
         return _registration_result(output)

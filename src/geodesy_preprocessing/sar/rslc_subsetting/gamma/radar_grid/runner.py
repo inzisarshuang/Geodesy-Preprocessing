@@ -17,7 +17,9 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
+from geodesy_preprocessing.common.case_layout import resolve_case_log_path
 from geodesy_preprocessing.common.progress import emit_progress
+from geodesy_preprocessing.common.reuse import ReuseState, classify_output
 from geodesy_preprocessing.sar.common.models import (
     RegisteredStackAsset,
     RegisteredStackManifest,
@@ -40,7 +42,7 @@ _TASK = "PRE_GAMMA_SAR_RSLC_CROP"
 
 @dataclass(frozen=True)
 class CropRunSummary:
-    """Asset counts and final output for one concluded crop batch."""
+    """Asset counts and final output for one completed crop batch."""
 
     total: int
     completed: int
@@ -100,20 +102,6 @@ def _validate_source_snapshot(snapshot: dict[Path, tuple[int, int]]) -> None:
         raise RuntimeError(f"source registered stack changed during crop: {', '.join(changed)}")
 
 
-def _existing_matches(plan: GammaRadarCropPlan, signature: str) -> bool:
-    provenance_path = plan.output_dir / "crop_window.json"
-    if not provenance_path.is_file():
-        return False
-    try:
-        provenance = json.loads(provenance_path.read_text(encoding="utf-8"))
-        if provenance.get("input_signature") != signature:
-            return False
-        read_stack_manifest(plan.output_dir / "registered_stack.json")
-    except (OSError, ValueError, KeyError, json.JSONDecodeError):
-        return False
-    return True
-
-
 def _output_stem(asset: RegisteredStackAsset, polarization_count: int) -> str:
     return asset.date if polarization_count == 1 else f"{asset.date}.{asset.polarization}"
 
@@ -130,7 +118,6 @@ def _move_geometry_artifacts(geometry: CropGeometryResult, staging: Path) -> Non
 def run_crop_stack(
     plan: GammaRadarCropPlan,
     *,
-    force: bool = False,
     command_runner=None,
     geometry_builder=build_crop_geometry,
     progress_sink: Callable[[str], None] = print,
@@ -141,6 +128,21 @@ def run_crop_stack(
         raise TypeError("plan must be GammaRadarCropPlan")
     total = len(plan.assets)
     signature = crop_input_signature(plan)
+    reuse = classify_output(
+        plan.output_dir,
+        "completion.json",
+        signature,
+        lambda output, manifest: _validate_completion_products(output, manifest),
+    )
+    if reuse.state is ReuseState.COMPLETE:
+        return CropRunSummary(total, 0, total, 0, plan.output_dir)
+    if reuse.state is ReuseState.MISMATCH:
+        raise FileExistsError(
+            f"crop destination contains results from different inputs: {plan.output_dir}. "
+            "Delete it after inspection or choose a different output directory"
+        )
+    if reuse.state is ReuseState.INCOMPLETE:
+        raise FileExistsError(f"incomplete crop destination: {reuse.guidance}")
     lock = plan.output_dir.parent / f".{plan.output_dir.name}.lock"
     plan.output_dir.parent.mkdir(parents=True, exist_ok=True)
     try:
@@ -152,13 +154,6 @@ def run_crop_stack(
     current_item: str | None = None
     current_index: int | None = None
     try:
-        if plan.output_dir.exists() and _existing_matches(plan, signature) and not force:
-            _event(progress_sink, event="batch_finished", status="skipped", total=total)
-            return CropRunSummary(total, 0, total, 0, plan.output_dir)
-        if plan.output_dir.exists() and not force:
-            raise FileExistsError(
-                f"crop output was produced from different inputs: {plan.output_dir}"
-            )
         snapshot = _source_snapshot(plan)
         staging = Path(
             tempfile.mkdtemp(
@@ -168,7 +163,11 @@ def run_crop_stack(
             )
         )
         log_dir = (
-            plan.config.project_root
+            resolve_case_log_path(
+                plan.config.case_root, "gamma_sar_rslc_crop", plan.config.name
+            )
+            if plan.config.case_root is not None
+            else plan.config.project_root
             / "LOG/PRE/GAMMA/gamma_sar_rslc_crop"
             / plan.config.name
         )
@@ -311,8 +310,28 @@ def run_crop_stack(
             provenance_path=Path("crop_window.json"),
         )
         write_stack_manifest(output_manifest, staging / "registered_stack.json")
+        required_products = sorted(
+            path.relative_to(staging).as_posix()
+            for path in staging.rglob("*")
+            if path.is_file() and path.stat().st_size > 0
+        )
+        (staging / "completion.json").write_text(
+            json.dumps(
+                {
+                    "status": "complete",
+                    "input_signature": signature,
+                    "processing_root": str(plan.config.processing_root),
+                    "required_products": required_products,
+                },
+                ensure_ascii=False,
+                sort_keys=True,
+                indent=2,
+            )
+            + "\n",
+            encoding="utf-8",
+        )
         _validate_source_snapshot(snapshot)
-        atomic_publish_crop(staging, plan.output_dir, force=force)
+        atomic_publish_crop(staging, plan.output_dir)
         staging = None
         _event(
             progress_sink,
@@ -340,6 +359,24 @@ def run_crop_stack(
         if staging is not None:
             shutil.rmtree(staging, ignore_errors=True)
         lock.unlink(missing_ok=True)
+
+
+def _validate_completion_products(
+    output: Path, manifest: dict[str, object]
+) -> bool:
+    products = manifest.get("required_products")
+    if not isinstance(products, list) or not products:
+        return False
+    if not all(
+        isinstance(value, str)
+        and ".." not in Path(value).parts
+        and (output / value).is_file()
+        and (output / value).stat().st_size > 0
+        for value in products
+    ):
+        return False
+    read_stack_manifest(output / "registered_stack.json")
+    return True
 
 
 __all__ = ["CropRunSummary", "run_crop_stack"]

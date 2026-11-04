@@ -13,6 +13,8 @@
 
 from __future__ import annotations
 
+import hashlib
+import json
 import shutil
 import subprocess
 import sys
@@ -23,6 +25,11 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from geodesy_preprocessing.common.progress import emit_progress
+from geodesy_preprocessing.common.reuse import ReuseState, classify_output
+from geodesy_preprocessing.sar.acquisition.sentinel1.burst_table import (
+    read_burst_number_table,
+    write_reference_burst_table,
+)
 
 from .plan import SlcBatchPlan, SlcItemPlan
 
@@ -85,6 +92,20 @@ def _resolved_command(name: str) -> tuple[str, ...]:
     return (executable,)
 
 
+def _safe_swaths(source: Path, polarization: str) -> frozenset[int]:
+    """Return IW swaths advertised by direct annotation XML files in one SAFE."""
+
+    annotation_dir = source / "annotation"
+    polarization_token = f"-{polarization.lower()}-"
+    swaths: set[int] = set()
+    for annotation in annotation_dir.glob("*.xml"):
+        name = annotation.name.lower()
+        if polarization_token not in name:
+            continue
+        swaths.update(index for index in (1, 2, 3) if f"-iw{index}-" in name)
+    return frozenset(swaths)
+
+
 class SlcRunner:
     """Execute the import, multi-look, and preview stages for one planned item."""
 
@@ -141,6 +162,14 @@ class SlcRunner:
         environment["PATH"] = os.pathsep.join(
             (str(python_dir), environment.get("PATH", ""))
         )
+        environment["LD_LIBRARY_PATH"] = os.pathsep.join(
+            (
+                str(python_dir.parent / "lib"),
+                environment.get("LD_LIBRARY_PATH", ""),
+            )
+        )
+        environment["PROJ_DATA"] = str(python_dir.parent / "share" / "proj")
+        environment["GDAL_DATA"] = str(python_dir.parent / "share" / "gdal")
         completed = subprocess.run(command, cwd=cwd, check=False, env=environment)
         if completed.returncode != 0:
             raise SlcCommandError(visible_stage, completed.returncode, command)
@@ -166,26 +195,84 @@ class SlcRunner:
         )
 
         if plan.workflow == "safe":
-            import_arguments = [
-                str(list_path),
-                "--burst_sel",
-                str(plan.burst_table),
-                "--root_name",
-                item.item,
-                "--out_dir",
-                ".",
-            ]
-            if plan.polarization_argument != "-":
-                import_arguments.extend(("--pol", item.polarization))
-            if plan.opod_dir is not None:
-                import_arguments.extend(("--OPOD_dir", str(plan.opod_dir)))
-            self._run(
-                "safe_import",
-                import_arguments,
-                staging,
-                stage="import",
-                stage_sink=stage_sink,
-            )
+            source_swaths = {
+                source: _safe_swaths(source, item.polarization)
+                for source in item.sources
+            }
+            known_swaths = tuple(value for value in source_swaths.values() if value)
+            heterogeneous = bool(known_swaths) and len(set(known_swaths)) > 1
+
+            def import_arguments(
+                source_list: Path, burst_selection: Path
+            ) -> list[str]:
+                arguments = [
+                    str(source_list),
+                    "--burst_sel",
+                    str(burst_selection),
+                    "--root_name",
+                    item.item,
+                    "--out_dir",
+                    ".",
+                ]
+                if plan.polarization_argument != "-":
+                    arguments.extend(("--pol", item.polarization))
+                if plan.opod_dir is not None:
+                    arguments.extend(("--OPOD_dir", str(plan.opod_dir)))
+                return arguments
+
+            if not heterogeneous:
+                self._run(
+                    "safe_import",
+                    import_arguments(list_path, plan.burst_table),
+                    staging,
+                    stage="import",
+                    stage_sink=stage_sink,
+                )
+            else:
+                reference_rows = read_burst_number_table(plan.burst_table)
+                available_swaths = set().union(*known_swaths)
+                selected_swaths = sorted(set(reference_rows) & available_swaths)
+                if not selected_swaths:
+                    raise ValueError(
+                        "reference burst table has no IW swath present in SAFE inputs"
+                    )
+                visible_sink = stage_sink or self._stage_sink
+                visible_sink("import")
+                combined_tab_lines: list[str] = []
+                combined_tab = staging / f"{item.item}.{item.polarization}.SLC_tab"
+                for swath in selected_swaths:
+                    sources = tuple(
+                        source
+                        for source in item.sources
+                        if swath in source_swaths[source]
+                    )
+                    swath_list = staging / f"dir_list_iw{swath}"
+                    swath_list.write_text(
+                        "".join(f"{source}\n" for source in sources),
+                        encoding="utf-8",
+                    )
+                    swath_table = staging / f"iw{swath}.ref_burst_number_table"
+                    write_reference_burst_table(
+                        (reference_rows[swath],), swath_table
+                    )
+                    self._run(
+                        "safe_import",
+                        import_arguments(swath_list, swath_table),
+                        staging,
+                        stage="import",
+                        stage_sink=lambda _stage: None,
+                    )
+                    if not combined_tab.is_file():
+                        raise FileNotFoundError(
+                            f"GAMMA did not create expected SLC tab: {combined_tab}"
+                        )
+                    for line in combined_tab.read_text(encoding="utf-8").splitlines():
+                        if line and line not in combined_tab_lines:
+                            combined_tab_lines.append(line)
+                combined_tab.write_text(
+                    "".join(f"{line}\n" for line in combined_tab_lines),
+                    encoding="utf-8",
+                )
         else:
             staged_burst = staging / "ref_burst_number_table"
             shutil.copy2(plan.burst_table, staged_burst)
@@ -253,6 +340,40 @@ def _failed_staging_destination(staging: Path) -> Path | None:
 DEFAULT_GAMMA_TOPS_SLC_TASK = "PRE_GAMMA_SAR_TOPS_SLC"
 
 
+def _item_signature(plan: SlcBatchPlan, item: SlcItemPlan) -> str:
+    sources = []
+    for source in item.sources:
+        stat = source.stat()
+        sources.append((str(source), stat.st_size, stat.st_mtime_ns))
+    payload = {
+        "item": item.item,
+        "sources": sources,
+        "burst_table": str(plan.burst_table),
+        "range_looks": plan.range_looks,
+        "azimuth_looks": plan.azimuth_looks,
+        "polarization": item.polarization,
+        "workflow": plan.workflow,
+    }
+    encoded = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()
+    return hashlib.sha256(encoded).hexdigest()
+
+
+def _validate_item_products(output: Path, manifest: dict[str, object]) -> bool:
+    products = manifest.get("required_products")
+    if not isinstance(products, list) or not products:
+        return False
+    for value in products:
+        if not isinstance(value, str):
+            return False
+        relative = Path(value)
+        if relative.is_absolute() or ".." in relative.parts:
+            return False
+        candidate = output / relative
+        if candidate.is_symlink() or not candidate.is_file() or candidate.stat().st_size < 1:
+            return False
+    return True
+
+
 def run_gamma_tops_slc(
     plan: SlcBatchPlan,
     *,
@@ -288,17 +409,19 @@ def run_gamma_tops_slc(
             )
 
         send("item_started", "running", current_stage)
-        if item.skip:
+        signature = _item_signature(plan, item)
+        reuse = classify_output(
+            item.output_dir, "completion.json", signature, _validate_item_products
+        )
+        if reuse.state is ReuseState.COMPLETE:
             skipped += 1
             send("item_finished", "skipped", current_stage)
             outputs.append(item.output_dir)
             continue
-        if item.output_dir.exists() and any(item.output_dir.iterdir()):
+        if reuse.state is not ReuseState.ABSENT:
             failed += 1
             send("item_finished", "failed", current_stage)
-            raise FileExistsError(
-                f"incomplete non-empty SLC destination exists: {item.output_dir}"
-            )
+            raise FileExistsError(reuse.guidance)
 
         staging = Path(
             tempfile.mkdtemp(
@@ -312,13 +435,34 @@ def run_gamma_tops_slc(
             send("stage_started", "running", stage)
 
         try:
-            executor.run_item(plan, item, staging, stage_sink=stage_started)
+            products = executor.run_item(plan, item, staging, stage_sink=stage_started)
             stage_started("publish")
             for helper in ("dir_list", "zip_list", "ref_burst_number_table"):
                 (staging / helper).unlink(missing_ok=True)
-            for pattern in ("*.burst_number_table", "read_S1_TOPS_SLC.*.log"):
+            for pattern in (
+                "dir_list_iw*",
+                "*.ref_burst_number_table",
+                "*.burst_number_table",
+                "read_S1_TOPS_SLC.*.log",
+            ):
                 for transient in staging.glob(pattern):
                     transient.unlink()
+            required = [path.relative_to(staging).as_posix() for path in products]
+            (staging / "completion.json").write_text(
+                json.dumps(
+                    {
+                        "status": "complete",
+                        "input_signature": signature,
+                        "processing_root": str(plan.slc_dir.parent),
+                        "required_products": required,
+                    },
+                    ensure_ascii=False,
+                    sort_keys=True,
+                    indent=2,
+                )
+                + "\n",
+                encoding="utf-8",
+            )
             if item.output_dir.exists():
                 item.output_dir.rmdir()
             os.replace(staging, item.output_dir)

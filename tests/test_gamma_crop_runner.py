@@ -164,7 +164,7 @@ class GammaCropRunnerTests(unittest.TestCase):
                 },
             )
 
-    def test_failure_or_concurrent_target_never_publishes_partial_stack(self) -> None:
+    def test_failure_never_publishes_partial_stack_or_replaces_concurrent_target(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             plan = self._plan(Path(directory))
             events: list[str] = []
@@ -192,16 +192,17 @@ class GammaCropRunnerTests(unittest.TestCase):
                 (current_plan.output_dir / "foreign").write_text("keep")
                 return result
 
-            with self.assertRaises(FileExistsError):
+            with self.assertRaisesRegex(FileExistsError, "appeared during execution"):
                 run_crop_stack(
                     plan,
                     command_runner=FakeSlcRunner(),
                     geometry_builder=concurrent_geometry,
                     progress_sink=lambda line: None,
                 )
-            self.assertEqual((plan.output_dir / "foreign").read_text(), "keep")
+            self.assertTrue((plan.output_dir / "foreign").is_file())
+            self.assertFalse((plan.output_dir / "registered_stack.json").exists())
 
-    def test_identical_result_skips_conflict_stops_and_force_replaces(self) -> None:
+    def test_identical_inputs_skip_and_changed_inputs_require_new_output(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             plan = self._plan(root)
@@ -223,23 +224,15 @@ class GammaCropRunnerTests(unittest.TestCase):
             changed = build_crop_plan(
                 dataclasses.replace(plan.config, buffer_km=6.0)
             )
-            with self.assertRaisesRegex(FileExistsError, "different"):
+            with self.assertRaisesRegex(FileExistsError, "different inputs"):
                 run_crop_stack(
                     changed,
                     command_runner=FakeSlcRunner(),
                     geometry_builder=fake_geometry,
                     progress_sink=lambda line: None,
                 )
-            replaced = run_crop_stack(
-                changed,
-                force=True,
-                command_runner=FakeSlcRunner(),
-                geometry_builder=fake_geometry,
-                progress_sink=lambda line: None,
-            )
-            self.assertEqual(replaced.completed, 2)
             provenance = json.loads((changed.output_dir / "crop_window.json").read_text())
-            self.assertEqual(provenance["buffer_km"], 6.0)
+            self.assertEqual(provenance["buffer_km"], 5.0)
             self.assertEqual(
                 provenance["aoi_sha256"],
                 hashlib.sha256(changed.config.kml_file.read_bytes()).hexdigest(),

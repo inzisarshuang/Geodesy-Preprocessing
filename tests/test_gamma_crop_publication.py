@@ -42,7 +42,7 @@ class GammaCropPublicationTests(unittest.TestCase):
         self.assertNotEqual(original, changed_pol)
         self.assertNotEqual(original, changed_kml)
 
-    def test_force_publication_replaces_complete_target(self) -> None:
+    def test_publication_rejects_and_preserves_existing_target(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             output = root / "result"
@@ -52,19 +52,16 @@ class GammaCropPublicationTests(unittest.TestCase):
             staging.mkdir()
             (staging / "new").write_text("new")
 
-            atomic_publish_crop(staging, output, force=True)
+            with self.assertRaisesRegex(FileExistsError, "appeared during execution"):
+                atomic_publish_crop(staging, output)
 
-            self.assertFalse(staging.exists())
-            self.assertFalse((output / "old").exists())
-            self.assertEqual((output / "new").read_text(), "new")
-            self.assertEqual(list(root.glob(".*.backup")), [])
+            self.assertEqual((output / "old").read_text(), "old")
+            self.assertEqual((staging / "new").read_text(), "new")
 
-    def test_failed_force_publication_restores_existing_target(self) -> None:
+    def test_failed_new_publication_keeps_staging_and_no_target(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             output = root / "result"
-            output.mkdir()
-            (output / "old").write_text("old")
             staging = root / "stage"
             staging.mkdir()
             (staging / "new").write_text("new")
@@ -79,9 +76,9 @@ class GammaCropPublicationTests(unittest.TestCase):
                 "geodesy_preprocessing.sar.rslc_subsetting.gamma.radar_grid.publication.os.replace",
                 side_effect=fail_staging,
             ), self.assertRaisesRegex(OSError, "forced"):
-                atomic_publish_crop(staging, output, force=True)
+                atomic_publish_crop(staging, output)
 
-            self.assertEqual((output / "old").read_text(), "old")
+            self.assertFalse(output.exists())
             self.assertTrue((staging / "new").is_file())
 
 

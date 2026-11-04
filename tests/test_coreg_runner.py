@@ -3,9 +3,12 @@
 from __future__ import annotations
 
 import importlib
+import io
 import json
+import sys
 import tempfile
 import unittest
+from contextlib import redirect_stderr, redirect_stdout
 from dataclasses import replace
 from pathlib import Path
 
@@ -138,6 +141,38 @@ class CoregRunnerTests(unittest.TestCase):
             self.assertTrue(runner.assert_is_copy)
             self.assertEqual(source.read_bytes(), original)
 
+    def test_external_gamma_output_is_written_to_logs_not_the_terminal(self) -> None:
+        module = self._module()
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            plan = self._plan(root)
+            stage = root / "stage"
+            stage.mkdir()
+            logs = stage / "logs"
+            runner = module.CoregRunner(poll_seconds=0.01)
+            terminal_out = io.StringIO()
+            terminal_err = io.StringIO()
+            command = (
+                sys.executable,
+                "-c",
+                "import sys; print('gamma details'); print('gamma error', file=sys.stderr); raise SystemExit(7)",
+            )
+
+            with redirect_stdout(terminal_out), redirect_stderr(terminal_err):
+                with self.assertRaises(module.CoregCommandError) as raised:
+                    runner._execute(
+                        command,
+                        stage,
+                        plan=plan,
+                        item_sink=lambda date: None,
+                    )
+
+            self.assertEqual(terminal_out.getvalue(), "")
+            self.assertEqual(terminal_err.getvalue(), "")
+            self.assertEqual((logs / "coregister.stdout.log").read_text().strip(), "gamma details")
+            self.assertEqual((logs / "coregister.stderr.log").read_text().strip(), "gamma error")
+            self.assertEqual(raised.exception.stderr_log, logs / "coregister.stderr.log")
+
     def test_batch_wrapper_publishes_complete_stack_and_reports_each_scene(self) -> None:
         module = self._module()
         outer = self
@@ -181,7 +216,7 @@ class CoregRunnerTests(unittest.TestCase):
             self.assertEqual([payload["item"] for payload in finished], ["20240905", "20240917"])
             self.assertEqual([payload["status"] for payload in finished], ["success", "success"])
 
-    def test_skip_preserves_complete_legacy_stack_without_adding_manifest(self) -> None:
+    def test_legacy_stack_without_completion_manifest_is_not_silently_skipped(self) -> None:
         module = self._module()
 
         with tempfile.TemporaryDirectory() as directory:
@@ -195,10 +230,9 @@ class CoregRunnerTests(unittest.TestCase):
                 sorted(path.relative_to(plan.output_dir) for path in plan.output_dir.rglob("*"))
             )
 
-            result = module.run_coreg(plan, progress_sink=lambda line: None)
+            with self.assertRaisesRegex(FileExistsError, "completion manifest"):
+                module.run_coreg(plan, progress_sink=lambda line: None)
 
-            self.assertEqual((result.success, result.skipped, result.failed), (0, 2, 0))
-            self.assertIsNone(result.registration)
             self.assertFalse((plan.output_dir / "registered_stack.json").exists())
             self.assertEqual(
                 before,
@@ -227,6 +261,36 @@ class CoregRunnerTests(unittest.TestCase):
 
             self.assertTrue(plan.output_dir.is_dir())
             self.assertFalse(any(root.glob(".RSLC.*.stage")))
+
+    def test_failed_stack_preserves_logs_and_reports_their_absolute_path(self) -> None:
+        module = self._module()
+
+        class FailingRunner:
+            def run_stack(self, plan, staging, *, item_sink):
+                logs = staging / "logs"
+                logs.mkdir()
+                stderr = logs / "coregister.stderr.log"
+                stderr.write_text("GAMMA failed\n", encoding="utf-8")
+                raise module.CoregCommandError(7, ("ScanSAR_coreg_stack.py",), stderr)
+
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            plan = self._plan(root)
+            events: list[str] = []
+
+            with self.assertRaises(module.CoregCommandError) as raised:
+                module.run_coreg(
+                    plan,
+                    runner=FailingRunner(),
+                    progress_sink=events.append,
+                )
+
+            self.assertTrue(raised.exception.stderr_log.is_absolute())
+            self.assertTrue(raised.exception.stderr_log.is_file())
+            self.assertIn("RSLC.failed-logs-", str(raised.exception.stderr_log))
+            failed = json.loads(events[-1].removeprefix("@@GEODESY_PROGRESS "))
+            self.assertEqual(failed["status"], "failed")
+            self.assertTrue(Path(failed["failure_logs"]).is_dir())
 
 
 if __name__ == "__main__":

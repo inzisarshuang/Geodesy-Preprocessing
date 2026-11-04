@@ -123,6 +123,66 @@ class SlcRunnerTests(unittest.TestCase):
                 (staging / "invocations.jsonl").read_text().splitlines()[0]
             )
             self.assertEqual(invocation["path"].split(os.pathsep)[0], "/chosen/env/bin")
+            self.assertEqual(
+                invocation["ld_library_path"].split(os.pathsep)[0],
+                "/chosen/env/lib",
+            )
+            self.assertEqual(invocation["proj_data"], "/chosen/env/share/proj")
+            self.assertEqual(invocation["gdal_data"], "/chosen/env/share/gdal")
+
+    def test_safe_mode_imports_each_swath_when_split_safes_differ(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            plan = self._plan(root, workflow_flag=1)
+            first, second = plan.items[0].sources
+            first_annotation = first / "annotation"
+            second_annotation = second / "annotation"
+            first_annotation.mkdir()
+            second_annotation.mkdir()
+            (first_annotation / "s1a-iw3-slc-vv-first.xml").write_text("<p />")
+            for swath in (2, 3):
+                (second_annotation / f"s1a-iw{swath}-slc-vv-second.xml").write_text(
+                    "<p />"
+                )
+            plan.burst_table.write_text(
+                "zipfile: ref.zip\n"
+                "iw2_number_of_bursts: 2\n"
+                "iw2_first_burst: 10\n"
+                "iw2_last_burst: 11\n"
+                "iw3_number_of_bursts: 3\n"
+                "iw3_first_burst: 20\n"
+                "iw3_last_burst: 22\n",
+                encoding="ascii",
+            )
+            staging = root / "stage"
+            staging.mkdir()
+            stages: list[str] = []
+
+            self._runner(stages).run_item(plan, plan.items[0], staging)
+
+            invocations = [
+                json.loads(line)
+                for line in (staging / "invocations.jsonl").read_text().splitlines()
+            ]
+            safe_imports = [
+                invocation
+                for invocation in invocations
+                if invocation["stage"] == "safe_import"
+            ]
+            self.assertEqual(len(safe_imports), 2)
+            list_paths = [Path(call["argv"][0]) for call in safe_imports]
+            self.assertEqual(
+                [path.read_text().splitlines() for path in list_paths],
+                [[str(second)], [str(first), str(second)]],
+            )
+            selection_paths = [
+                Path(call["argv"][call["argv"].index("--burst_sel") + 1])
+                for call in safe_imports
+            ]
+            self.assertIn("iw2_number_of_bursts", selection_paths[0].read_text())
+            self.assertNotIn("iw3_number_of_bursts", selection_paths[0].read_text())
+            self.assertIn("iw3_number_of_bursts", selection_paths[1].read_text())
+            self.assertEqual(stages, ["import", "multi_look", "preview"])
 
     def test_zip_mode_preserves_legacy_import_arguments(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:
@@ -243,19 +303,16 @@ class SlcBatchTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary_directory:
             root = Path(temporary_directory)
             initial = self._plan(root, workflow_flag=1)
+            first = run_slc_batch(
+                initial, runner=self._runner([]), progress_sink=lambda line: None
+            )
+            self.assertEqual(first.success, 1)
             destination = initial.items[0].output_dir
-            destination.mkdir(parents=True)
-            (destination / "20240905.vv.mli").write_bytes(b"existing")
+            before = (destination / "20240905.vv.mli").read_bytes()
+            invocations_before = (destination / "invocations.jsonl").read_bytes()
             plan = build_slc_plan(
-                initial.raw_dir,
-                initial.slc_dir,
-                "-",
-                initial.images_file,
-                initial.burst_table,
-                4,
-                1,
-                "-",
-                1,
+                initial.raw_dir, initial.slc_dir, "-", initial.images_file,
+                initial.burst_table, 4, 1, "-", 1,
             )
             lines: list[str] = []
 
@@ -264,8 +321,10 @@ class SlcBatchTests(unittest.TestCase):
             )
 
             self.assertEqual((result.success, result.skipped), (0, 1))
-            self.assertEqual((destination / "20240905.vv.mli").read_bytes(), b"existing")
-            self.assertFalse((destination / "invocations.jsonl").exists())
+            self.assertEqual((destination / "20240905.vv.mli").read_bytes(), before)
+            self.assertEqual(
+                (destination / "invocations.jsonl").read_bytes(), invocations_before
+            )
             self.assertIn('"status":"skipped"', lines[-1])
 
     def test_incomplete_destination_is_not_overwritten(self) -> None:

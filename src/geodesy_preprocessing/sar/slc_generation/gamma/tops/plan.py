@@ -143,16 +143,14 @@ def build_gamma_tops_slc_plan(
                 f"no {source_kind} source matching item {item} and suffix {suffix}"
             )
         item_output = output_root / item
-        expected_mli = item_output / f"{item}.{normalized}.mli"
-        skip = expected_mli.is_file()
         planned_items.append(
             SlcItemPlan(
                 item=item,
                 sources=tuple(sources),
                 output_dir=item_output,
                 polarization=normalized,
-                skip=skip,
-                skip_reason="requested MLI already exists" if skip else None,
+                skip=False,
+                skip_reason=None,
             )
         )
 

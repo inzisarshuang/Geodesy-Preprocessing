@@ -52,7 +52,7 @@ class ImageListTests(unittest.TestCase):
 
 
 class SlcPlanDiscoveryTests(unittest.TestCase):
-    """Build ordered read-only SAFE/ZIP plans with correct skip semantics."""
+    """Build ordered read-only SAFE/ZIP plans without filesystem-only skipping."""
 
     def _layout(self, root: Path, workflow_flag: int = 1) -> dict[str, object]:
         root.mkdir(parents=True, exist_ok=True)
@@ -110,8 +110,8 @@ class SlcPlanDiscoveryTests(unittest.TestCase):
 
             self.assertEqual(plan.workflow, "zip")
             self.assertEqual(plan.items[0].polarization, "vh")
-            self.assertTrue(plan.items[0].skip)
-            self.assertEqual(plan.items[0].skip_reason, "requested MLI already exists")
+            self.assertFalse(plan.items[0].skip)
+            self.assertIsNone(plan.items[0].skip_reason)
             self.assertFalse(plan.items[1].skip)
 
     def test_missing_source_and_invalid_control_values_fail_before_execution(self) -> None:
