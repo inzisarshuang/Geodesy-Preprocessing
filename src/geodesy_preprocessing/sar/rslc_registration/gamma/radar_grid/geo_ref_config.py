@@ -224,7 +224,11 @@ def load_gamma_radar_geo_ref_config(
         figure_dir = (
             _resolve(project_root, values["figure_dir"], "figure_dir")
             if values.get("figure_dir", "").strip()
-            else (layout.figure("RSLC_GEOCODING") if layout is not None else output_dir)
+            else (
+                layout.figure("RSLC_GEOCODING")
+                if layout is not None
+                else output_dir.parent / "FIGURES/PRE/RSLC_GEOCODING"
+            )
         )
         if layout is not None:
             slc_dir = layout.require_processing_path(slc_dir, "slc_dir")

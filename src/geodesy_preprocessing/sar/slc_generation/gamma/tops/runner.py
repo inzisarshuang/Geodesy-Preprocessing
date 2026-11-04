@@ -25,6 +25,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from geodesy_preprocessing.common.progress import emit_progress
+from geodesy_preprocessing.common.figures import centralize_pre_figures
 from geodesy_preprocessing.common.reuse import ReuseState, classify_output
 from geodesy_preprocessing.sar.acquisition.sentinel1.burst_table import (
     read_burst_number_table,
@@ -447,7 +448,11 @@ def run_gamma_tops_slc(
             ):
                 for transient in staging.glob(pattern):
                     transient.unlink()
-            required = [path.relative_to(staging).as_posix() for path in products]
+            required = [
+                path.relative_to(staging).as_posix()
+                for path in products
+                if path.suffix.lower() not in {".bmp", ".png", ".jpg", ".jpeg", ".tif", ".tiff"}
+            ]
             (staging / "completion.json").write_text(
                 json.dumps(
                     {
@@ -466,6 +471,9 @@ def run_gamma_tops_slc(
             if item.output_dir.exists():
                 item.output_dir.rmdir()
             os.replace(staging, item.output_dir)
+            centralize_pre_figures(
+                item.output_dir, plan.figure_dir / item.item
+            )
             success += 1
             outputs.append(item.output_dir)
             send("item_finished", "success", "publish")

@@ -24,6 +24,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from geodesy_preprocessing.common.progress import emit_progress
+from geodesy_preprocessing.common.figures import centralize_pre_figures
 
 from .geo_ref_plan import GammaRadarGeoRefPlan
 
@@ -344,6 +345,12 @@ def run_gamma_radar_geo_ref(
         if output.exists():
             raise FileExistsError(f"reference-geometry destination appeared during run: {output}")
         os.replace(staging, output)
+        centralize_pre_figures(
+            output,
+            plan.case.figure_dir
+            if plan.case.figure_dir is not None
+            else output.parent / "FIGURES/PRE/RSLC_GEOCODING",
+        )
         progress_sink(
             emit_progress(
                 event="item_finished",

@@ -281,7 +281,7 @@ def select_slc_case(
 def slc_case_arguments(case: SlcConfigCase) -> tuple[str, ...]:
     """Return the nine historical S1-03 arguments for one resolved case."""
 
-    return (
+    arguments = (
         str(case.raw_dir),
         str(case.slc_dir),
         str(case.opod_dir) if case.opod_dir is not None else "-",
@@ -292,6 +292,9 @@ def slc_case_arguments(case: SlcConfigCase) -> tuple[str, ...]:
         case.polarization,
         str(case.workflow_flag),
     )
+    if case.processing_root is not None and case.figure_dir is not None:
+        return arguments + ("--figure-dir", str(case.figure_dir))
+    return arguments
 
 
 __all__ = [

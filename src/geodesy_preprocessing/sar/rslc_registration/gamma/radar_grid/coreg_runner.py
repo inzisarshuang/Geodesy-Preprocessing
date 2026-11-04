@@ -23,6 +23,7 @@ from collections.abc import Callable, Mapping, Sequence
 from pathlib import Path
 
 from geodesy_preprocessing.common.progress import emit_progress
+from geodesy_preprocessing.common.figures import centralize_pre_figures
 from geodesy_preprocessing.common.reuse import ReuseState, classify_output
 from geodesy_preprocessing.sar.common.models import (
     BackendIdentity,
@@ -341,6 +342,7 @@ def _publish_metadata(
         if path.is_file()
         and path.stat().st_size > 0
         and "logs" not in path.relative_to(staging).parts
+        and path.suffix.lower() not in {".bmp", ".png", ".jpg", ".jpeg"}
     )
     (staging / "completion.json").write_text(
         json.dumps(
@@ -564,6 +566,12 @@ def run_gamma_radar_coreg(
         if output.exists() or output.is_symlink():
             raise FileExistsError(f"RSLC destination appeared during execution: {output}")
         os.replace(staging, output)
+        centralize_pre_figures(
+            output,
+            plan.case.figure_dir
+            if plan.case.figure_dir is not None
+            else output.parent / "FIGURES/PRE/RSLC",
+        )
         return _registration_result(output)
     except BaseException as error:
         failure_logs = _preserve_failure_logs(staging, output)

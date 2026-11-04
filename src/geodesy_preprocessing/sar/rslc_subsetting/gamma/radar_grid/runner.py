@@ -18,6 +18,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from geodesy_preprocessing.common.case_layout import resolve_case_log_path
+from geodesy_preprocessing.common.figures import centralize_pre_figures
 from geodesy_preprocessing.common.progress import emit_progress
 from geodesy_preprocessing.common.reuse import ReuseState, classify_output
 from geodesy_preprocessing.sar.common.models import (
@@ -313,7 +314,9 @@ def run_crop_stack(
         required_products = sorted(
             path.relative_to(staging).as_posix()
             for path in staging.rglob("*")
-            if path.is_file() and path.stat().st_size > 0
+            if path.is_file()
+            and path.stat().st_size > 0
+            and path.suffix.lower() not in {".bmp", ".png", ".jpg", ".jpeg"}
         )
         (staging / "completion.json").write_text(
             json.dumps(
@@ -333,6 +336,12 @@ def run_crop_stack(
         _validate_source_snapshot(snapshot)
         atomic_publish_crop(staging, plan.output_dir)
         staging = None
+        centralize_pre_figures(
+            plan.output_dir,
+            plan.config.figure_dir
+            if plan.config.figure_dir is not None
+            else plan.output_dir.parent / "FIGURES/PRE/RSLC_SUBSET",
+        )
         _event(
             progress_sink,
             event="batch_finished",

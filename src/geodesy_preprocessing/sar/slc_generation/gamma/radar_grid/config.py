@@ -267,7 +267,11 @@ def _load_sar_slc_config(
         figure_dir = (
             _resolve_project_path(project_root, figure_text, "figure_dir")
             if figure_text
-            else (layout.figure("SLC") if layout is not None else slc_dir)
+            else (
+                layout.figure("SLC")
+                if layout is not None
+                else slc_dir.parent / "FIGURES/PRE/SLC"
+            )
         )
         if layout is not None:
             raw_dir = layout.require_project_input(raw_dir, "raw_dir")

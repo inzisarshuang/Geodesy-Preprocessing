@@ -203,7 +203,7 @@ def select_geo_ref_case(cases: Sequence[GeoRefConfigCase], name: str | None) -> 
 def geo_ref_case_arguments(case: GeoRefConfigCase) -> tuple[str, ...]:
     """Return the ten historical S1-04 arguments for one case."""
 
-    return (
+    arguments = (
         case.reference,
         str(case.dem_dir),
         str(case.slc_dir),
@@ -215,6 +215,9 @@ def geo_ref_case_arguments(case: GeoRefConfigCase) -> tuple[str, ...]:
         str(case.reference_flag),
         str(case.incidence_flag),
     )
+    if case.processing_root is not None and case.figure_dir is not None:
+        return arguments + ("--figure-dir", str(case.figure_dir))
+    return arguments
 
 
 __all__ = ["GammaTopsGeoRefCase", "GeoRefConfigCase", "geo_ref_case_arguments", "load_geo_ref_config", "select_geo_ref_case"]

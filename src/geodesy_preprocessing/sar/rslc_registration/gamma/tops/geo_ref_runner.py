@@ -23,6 +23,7 @@ from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
+from geodesy_preprocessing.common.figures import centralize_pre_figures
 from geodesy_preprocessing.common.progress import emit_progress
 from geodesy_preprocessing.sar.slc_generation.gamma.tops.view import (
     read_slc_tab_rows,
@@ -404,6 +405,7 @@ def run_gamma_tops_geo_ref(
                 f"DEM-geocoding destination appeared during execution: {plan.output_dir}"
             )
         os.replace(staging, plan.output_dir)
+        centralize_pre_figures(plan.output_dir, plan.figure_dir)
         send("item_finished", "success", "publish")
         return GeoRefResult("success", plan.output_dir)
     except BaseException:

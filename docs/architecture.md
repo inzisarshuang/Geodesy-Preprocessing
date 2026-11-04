@@ -131,14 +131,27 @@ acquisition/nisar
 
 Git 记录代码演进；项目 LOG 记录某次数据处理。二者用途不同，不能相互替代。
 
+## 方法根目录、复用与快视图
+
+项目 CFG 用 `project = SENSOR/CASE` 标识数据 case，用
+`processing_root = SENSOR/CASE/METHOD` 标识处理方法。预处理科学产品固定组织为
+`SLC`、`RSLC/GEOCODING`、`RSLC` 和可选 `RSLC/SUBSET`。各阶段可显式设置
+`output_dir`、`figure_dir`；省略时从 `processing_root` 推导。
+
+昂贵科学步骤仅在 `completion.json` 状态完整、输入签名一致且必需文件非空时跳过。
+已存在但残缺或输入变化的目录不会覆盖，用户应检查后删除或指定新目录。BMP/PNG/JPEG
+快视图不再混入科学目录，统一发布到 `FIGURES/PRE/<PRODUCT>`；缺图可仅执行预览修复，
+不需要重跑 SLC、配准或裁剪科学命令。
+
 ## Sentinel-1 获取与 GAMMA 的交界
 
 `sar/acquisition/sentinel1` 是公共层，不导入 GAMMA。它发布
 `query_dir/images_NNN`、`download_dir/Orbit_NNN`、`query_manifest.json`、
 `source_manifest.json` 和（BURST 情况）`safe_manifest.json`。项目中的
-`gamma_sar_tops_slc.cfg` 明确把 `raw_dir` 指向该 `Orbit_NNN`，把 `images` 指向
-查询目录的 `images_NNN`；参考 burst 表仍由独立的 burst 表步骤生成。SLC/GRD 不执行
-BURST 合并，GRD 也不进入当前 TOPS InSAR 链。
+`gamma_slc_tops.cfg` 明确把 `raw_dir` 指向该 `Orbit_NNN`，把 `images` 指向
+查询目录的 `images_NNN`。GAMMA TOPS SLC 层在参考表缺失时，根据项目 ROI 和参考
+日期自动生成 burst 表，已有表则复用；这属于 GAMMA SAFE 导入准备，不放回公共获取
+层。SLC/GRD 不执行 BURST 合并，GRD 也不进入当前 TOPS InSAR 链。
 
 ## NISAR 边界
 

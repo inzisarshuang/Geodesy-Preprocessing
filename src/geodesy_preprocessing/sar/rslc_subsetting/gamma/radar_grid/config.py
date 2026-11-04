@@ -172,7 +172,11 @@ def load_crop_config(path: Path, case: str) -> GammaRadarCropConfig:
     figure_dir = (
         resolved("figure_dir")
         if values.get("figure_dir", "").strip()
-        else (layout.figure("RSLC_SUBSET") if layout is not None else output_dir)
+        else (
+            layout.figure("RSLC_SUBSET")
+            if layout is not None
+            else output_dir.parent / "FIGURES/PRE/RSLC_SUBSET"
+        )
     )
     if layout is not None:
         registered_stack = layout.require_processing_path(

@@ -52,6 +52,11 @@ geodesy-pre-gamma-rslc-crop --config PROJECT/config/preprocessing/gamma_rslc_cro
 geodesy-pre-gamma-rslc-crop --config PROJECT/config/preprocessing/gamma_rslc_crop.cfg --case main
 ```
 
-先确认 KML 缓冲范围没有被缩减且 lookup 覆盖足够，再正式发布。最终
+`--plan-only` 可在目标裁剪目录尚有旧文件或不完整内容时检查范围，不会触碰正式裁剪
+输出。先确认 KML 缓冲范围没有被缩减且 lookup 覆盖足够，再正式运行。完整且同签名
+结果会跳过；残缺或输入变化的目录不会被覆盖，应人工删除或另设 `output_dir`。最终
 `registered_stack.json` 是交给 `Geodesy-Analysis` 的入口。日志位于项目 `LOG/PRE/`
 和各阶段输出内部的逐景 `logs/`。
+
+所有 SLC、参考几何、RSLC 和裁剪快视图统一位于方法根目录 `FIGURES/PRE/<PRODUCT>`。
+CFG 中的 `figure_dir` 可以手动覆盖默认位置；缺少图片时只修复预览，不重跑科学产品。

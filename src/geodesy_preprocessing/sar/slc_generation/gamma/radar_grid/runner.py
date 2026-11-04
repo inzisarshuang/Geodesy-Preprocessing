@@ -22,6 +22,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from geodesy_preprocessing.common.case_layout import resolve_case_log_path
+from geodesy_preprocessing.common.figures import centralize_pre_figures
 from geodesy_preprocessing.common.progress import emit_progress
 from geodesy_preprocessing.common.reuse import ReuseState, classify_output
 
@@ -275,6 +276,8 @@ def run_gamma_radar_slc(
                         "required_products": [
                             str(output.destination.relative_to(case.slc_dir))
                             for output in scene.outputs
+                            if output.destination.suffix.lower()
+                            not in {".bmp", ".png", ".jpg", ".jpeg", ".tif", ".tiff"}
                         ],
                     },
                     ensure_ascii=False,
@@ -285,6 +288,12 @@ def run_gamma_radar_slc(
                 encoding="utf-8",
             )
             os.replace(staged_completion, completion_dir)
+            centralize_pre_figures(
+                case.slc_dir,
+                case.figure_dir
+                if case.figure_dir is not None
+                else case.slc_dir.parent / "FIGURES/PRE/SLC",
+            )
             completed += 1
             _event(
                 progress_sink,

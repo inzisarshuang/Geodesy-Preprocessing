@@ -213,7 +213,7 @@ burst_table = S1/DOWNLOAD/ascending/ref_burst_number_table_128
             with self.assertRaisesRegex(ValueError, "unknown key"):
                 load_slc_config(config)
 
-    def test_cli_runs_one_selected_case_through_existing_slc_cli(self) -> None:
+    def test_cli_rejects_legacy_partial_scene_without_completion_manifest(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             config = self._project(Path(directory), two_cases=False)
             project = config.parents[2]
@@ -229,8 +229,8 @@ burst_table = S1/DOWNLOAD/ascending/ref_burst_number_table_128
             with patch.dict(os.environ, environment), redirect_stdout(terminal):
                 exit_code = main(["--config", str(config), "--case", "2024_154"])
 
-            self.assertEqual(exit_code, 0)
-            self.assertIn('"status":"skipped"', terminal.getvalue())
+            self.assertEqual(exit_code, 1)
+            self.assertIn('"status":"failed"', terminal.getvalue())
             self.assertIn('"task":"PRE_S1_SLC"', terminal.getvalue())
 
     def test_cli_prepares_missing_burst_table_before_slc_generation(self) -> None:
@@ -260,7 +260,7 @@ burst_table = S1/DOWNLOAD/ascending/ref_burst_number_table_128
                     ["--config", str(config), "--case", "2024_154"]
                 )
 
-            self.assertEqual(exit_code, 0)
+            self.assertEqual(exit_code, 1)
             self.assertEqual(prepared, [case.burst_table])
 
     def test_cli_reports_configuration_errors_without_traceback(self) -> None:

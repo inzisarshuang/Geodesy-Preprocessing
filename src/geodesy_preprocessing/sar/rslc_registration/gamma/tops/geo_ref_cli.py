@@ -36,6 +36,7 @@ def _parser(*, legacy: bool) -> argparse.ArgumentParser:
     parser.add_argument("longitude_oversampling", nargs="?", default="-")
     parser.add_argument("reference_flag", nargs="?", type=int, default=1)
     parser.add_argument("incidence_flag", nargs="?", type=int, default=0)
+    parser.add_argument("--figure-dir")
     return parser
 
 
@@ -62,6 +63,7 @@ def _main(arguments: Sequence[str] | None, *, legacy: bool) -> int:
             parsed.longitude_oversampling,
             parsed.reference_flag,
             parsed.incidence_flag,
+            parsed.figure_dir,
         )
         recorded = os.environ.get("GEODESY_PROGRESS_PROTOCOL") == "1"
         sink = print if recorded else _LocalProgress()

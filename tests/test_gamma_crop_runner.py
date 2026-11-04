@@ -118,7 +118,9 @@ class GammaCropRunnerTests(unittest.TestCase):
             self.assertEqual(manifest.dates, plan.manifest.dates)
             self.assertEqual(manifest.polarizations, ("VV",))
             self.assertEqual((plan.output_dir / "images").read_text(), "20240101\n20240113\n")
-            self.assertEqual(len(list((plan.output_dir / "quicklooks").glob("*.bmp"))), 2)
+            self.assertEqual(len(list((plan.output_dir / "quicklooks").glob("*.bmp"))), 0)
+            figure_dir = plan.output_dir.parent / "FIGURES/PRE/RSLC_SUBSET"
+            self.assertEqual(len(list(figure_dir.rglob("*.bmp"))), 3)
             log_root = plan.config.project_root / "LOG/PRE/GAMMA/gamma_sar_rslc_crop/main"
             self.assertIn("stdout-detail", (log_root / "stdout.log").read_text())
             self.assertIn("stderr-detail", (log_root / "stderr.log").read_text())

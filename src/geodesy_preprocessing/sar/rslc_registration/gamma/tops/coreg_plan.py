@@ -41,6 +41,7 @@ class GammaTopsCoregPlan:
     slc_dir: Path
     dem_geocode_dir: Path
     output_dir: Path
+    figure_dir: Path
     reference: str
     images_file: Path
     height_file: Path
@@ -114,6 +115,7 @@ def build_gamma_tops_coreg_plan(
     id_mode: str = "date",
     npoly: int = 4,
     bridge_mode: str = "none",
+    figure_dir: str | Path | None = None,
 ) -> CoregPlan:
     """Validate all S1-05 inputs without changing the source or destination."""
 
@@ -138,6 +140,11 @@ def build_gamma_tops_coreg_plan(
     items = tuple(_read_tab(_directory(slc_root / date, f"SLC scene {date}"), date) for date in dates)
 
     output = Path(output_dir).expanduser().resolve()
+    figures = (
+        Path(figure_dir).expanduser().resolve()
+        if figure_dir is not None
+        else output.parent / "FIGURES/PRE/RSLC"
+    )
     expected: list[Path] = []
     for date in dates:
         expected.extend(
@@ -147,15 +154,12 @@ def build_gamma_tops_coreg_plan(
     complete = all(path.is_file() and path.stat().st_size > 0 for path in expected)
     if output.exists() and not output.is_dir():
         raise FileExistsError(f"RSLC destination is not a directory: {output}")
-    if output.exists() and not complete:
-        raise FileExistsError(
-            f"incomplete RSLC destination exists and will not be removed: {output}"
-        )
 
     return CoregPlan(
         slc_dir=slc_root,
         dem_geocode_dir=dem_root,
         output_dir=output,
+        figure_dir=figures,
         reference=reference_text,
         images_file=images,
         height_file=height,
@@ -169,7 +173,7 @@ def build_gamma_tops_coreg_plan(
         bridge_mode=bridge_mode,
         items=items,
         expected_outputs=tuple(expected),
-        skip=complete,
+        skip=False,
     )
 
 

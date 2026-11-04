@@ -27,6 +27,7 @@ from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
+from geodesy_preprocessing.common.figures import centralize_pre_figures
 from geodesy_preprocessing.common.progress import emit_progress
 from geodesy_preprocessing.common.reuse import ReuseState, classify_output
 from geodesy_preprocessing.sar.common.models import (
@@ -501,6 +502,7 @@ def run_gamma_tops_coreg(
             encoding="utf-8",
         )
         os.replace(staging, plan.output_dir)
+        centralize_pre_figures(plan.output_dir, plan.figure_dir)
         return CoregBatchResult(
             len(completed),
             0,

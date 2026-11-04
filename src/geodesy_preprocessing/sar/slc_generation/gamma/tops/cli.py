@@ -24,7 +24,7 @@ from .runner import SlcCommandError, run_slc_batch
 
 def _parser(*, legacy: bool) -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        prog="S1-03raw2slc" if legacy else "geodesy-pre-gamma-sar-tops-slc",
+        prog="S1-03raw2slc" if legacy else "geodesy-pre-gamma-slc-tops",
         description="Generate GAMMA Sentinel-1 TOPS SLC products.",
     )
     parser.add_argument("RAW_dir")
@@ -34,6 +34,7 @@ def _parser(*, legacy: bool) -> argparse.ArgumentParser:
     parser.add_argument("ref_burst_number_table")
     parser.add_argument("rlks", type=int)
     parser.add_argument("azlks", type=int)
+    parser.add_argument("--figure-dir")
     parser.add_argument("optional", nargs="*")
     return parser
 
@@ -102,6 +103,7 @@ def _main(arguments: Sequence[str] | None, *, legacy: bool) -> int:
             parsed.azlks,
             polarization,
             workflow_flag,
+            parsed.figure_dir,
         )
         recorded = os.environ.get("GEODESY_PROGRESS_PROTOCOL") == "1"
         if recorded:

@@ -29,6 +29,7 @@ class GammaTopsGeoRefPlan:
     slc_dir: Path
     slc_sources: tuple[Path, ...]
     output_dir: Path
+    figure_dir: Path
     range_looks: int
     azimuth_looks: int
     latitude_oversampling: float | None
@@ -93,6 +94,7 @@ def build_gamma_tops_geo_ref_plan(
     longitude_oversampling: float | str | None = None,
     reference_flag: int = 1,
     incidence_flag: int = 0,
+    figure_dir: str | Path | None = None,
 ) -> GeoRefPlan:
     """Validate S1-04 inputs without changing the filesystem."""
 
@@ -126,6 +128,11 @@ def build_gamma_tops_geo_ref_plan(
         raise ValueError("incidence flag must be 0 or 1")
 
     output = Path(output_dir).expanduser().resolve()
+    figures = (
+        Path(figure_dir).expanduser().resolve()
+        if figure_dir is not None
+        else output.parent / "FIGURES/PRE/RSLC_GEOCODING"
+    )
     expected = tuple(
         output / f"{reference_text}{suffix}"
         for suffix in (".lt_fine", ".utm.dem", ".utm.dem.par", ".mli.utm", ".hgt_sim")
@@ -133,10 +140,6 @@ def build_gamma_tops_geo_ref_plan(
     complete = all(path.is_file() and path.stat().st_size > 0 for path in expected)
     if output.exists() and not output.is_dir():
         raise FileExistsError(f"DEM-geocoding destination is not a directory: {output}")
-    if output.exists() and not complete:
-        raise FileExistsError(
-            f"incomplete DEM-geocoding destination exists and will not be removed: {output}"
-        )
 
     return GeoRefPlan(
         reference=reference_text,
@@ -145,6 +148,7 @@ def build_gamma_tops_geo_ref_plan(
         slc_dir=slc_root,
         slc_sources=sources,
         output_dir=output,
+        figure_dir=figures,
         range_looks=_positive_integer(range_looks, "range looks"),
         azimuth_looks=_positive_integer(azimuth_looks, "azimuth looks"),
         latitude_oversampling=latitude,
@@ -152,7 +156,7 @@ def build_gamma_tops_geo_ref_plan(
         reference_flag=reference_flag,
         incidence_flag=incidence_flag,
         expected_outputs=expected,
-        skip=complete,
+        skip=False,
     )
 
 

@@ -211,7 +211,7 @@ def select_coreg_case(cases: Sequence[CoregConfigCase], name: str | None) -> Cor
 def coreg_case_arguments(case: CoregConfigCase) -> tuple[str, ...]:
     """Return positional compatibility arguments plus explicit project settings."""
 
-    return (
+    arguments = (
         str(case.slc_dir), str(case.dem_geocode_dir), str(case.output_dir),
         case.reference, str(case.images_file), str(case.range_looks),
         str(case.azimuth_looks), "--cc", str(case.coherence_threshold),
@@ -219,6 +219,9 @@ def coreg_case_arguments(case: CoregConfigCase) -> tuple[str, ...]:
         str(case.phase_stdev_threshold), "--id-mode", case.id_mode,
         "--npoly", str(case.npoly), "--bridge-mode", case.bridge_mode,
     )
+    if case.processing_root is not None and case.figure_dir is not None:
+        return arguments + ("--figure-dir", str(case.figure_dir))
+    return arguments
 
 
 __all__ = ["GammaTopsCoregCase", "CoregConfigCase", "coreg_case_arguments", "load_coreg_config", "select_coreg_case"]

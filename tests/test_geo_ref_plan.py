@@ -61,7 +61,7 @@ class GeoRefPlanTests(unittest.TestCase):
             with self.assertRaises(Exception):
                 plan.reference = "20240906"
 
-    def test_complete_destination_skips_but_incomplete_destination_is_rejected(self) -> None:
+    def test_existing_destination_is_deferred_to_runner_validation(self) -> None:
         module = self._module()
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -80,10 +80,12 @@ class GeoRefPlanTests(unittest.TestCase):
 
             plan = module.build_geo_ref_plan("20240905", dem, slc, output, 7, 2)
 
-            self.assertTrue(plan.skip)
+            self.assertFalse(plan.skip)
             (output / required[-1]).unlink()
-            with self.assertRaisesRegex(FileExistsError, "incomplete"):
-                module.build_geo_ref_plan("20240905", dem, slc, output, 7, 2)
+            incomplete = module.build_geo_ref_plan(
+                "20240905", dem, slc, output, 7, 2
+            )
+            self.assertFalse(incomplete.skip)
 
     def test_rejects_invalid_reference_ambiguous_dem_and_partial_oversampling(self) -> None:
         module = self._module()

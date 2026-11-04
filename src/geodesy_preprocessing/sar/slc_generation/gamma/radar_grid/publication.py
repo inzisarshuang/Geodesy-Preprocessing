@@ -36,8 +36,14 @@ def classify_output_group(outputs: Sequence[ProductOutput]) -> str:
 
     if not outputs:
         raise ValueError("output group must not be empty")
+    science_outputs = tuple(
+        output
+        for output in outputs
+        if output.destination.suffix.lower()
+        not in {".bmp", ".png", ".jpg", ".jpeg", ".tif", ".tiff"}
+    )
     present: list[bool] = []
-    for output in outputs:
+    for output in science_outputs:
         destination = output.destination
         if destination.is_symlink():
             raise ValueError(f"output destination is a symlink: {destination}")

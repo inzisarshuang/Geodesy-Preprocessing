@@ -19,7 +19,7 @@ from geodesy_preprocessing.sar.slc_generation.gamma.radar_grid.config import (
 )
 
 from .geo_ref_config import GammaRadarGeoRefCase
-from .models import GammaSlcAsset, GammaSlcGrid
+from .models import GammaSlcAsset, GammaSlcGrid, _gamma_slc_paths
 from .parameters import read_slc_grid
 
 
@@ -75,9 +75,7 @@ def _read_dates(path: Path) -> tuple[str, ...]:
 def _reference_asset(case: GammaRadarGeoRefCase) -> GammaSlcAsset:
     date = case.reference_date
     polarization = case.primary_polarization
-    scene = case.slc_dir / f"{polarization}_SLC" / date
-    data = scene / f"{date}.slc"
-    parameter = scene / f"{date}.slc.par"
+    data, parameter = _gamma_slc_paths(case.slc_dir, date, polarization)
     try:
         data = _regular_file(data, "reference SLC")
         parameter = _regular_file(parameter, "reference SLC parameter")
@@ -140,11 +138,10 @@ def build_gamma_radar_geo_ref_plan(
         manifest,
     )
     present = tuple(path.is_file() and path.stat().st_size > 0 for path in expected)
-    if output.exists() and not all(present):
+    if output.exists() and any(present) and not all(present):
         raise FileExistsError(
-            f"incomplete reference-geometry destination exists and will not be removed: {output}"
+            f"incomplete reference-geometry destination: {output}"
         )
-
     return GammaRadarGeoRefPlan(
         case=case,
         dates=dates,

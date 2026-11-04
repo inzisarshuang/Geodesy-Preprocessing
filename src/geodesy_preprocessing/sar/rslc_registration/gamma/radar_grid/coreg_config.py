@@ -344,7 +344,11 @@ def load_gamma_radar_coreg_config(
         figure_dir = (
             _resolve(project_root, values["figure_dir"], "figure_dir")
             if values.get("figure_dir", "").strip()
-            else (layout.figure("RSLC") if layout is not None else output_dir)
+            else (
+                layout.figure("RSLC")
+                if layout is not None
+                else output_dir.parent / "FIGURES/PRE/RSLC"
+            )
         )
         if layout is not None:
             slc_dir = layout.require_processing_path(slc_dir, "slc_dir")

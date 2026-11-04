@@ -11,12 +11,11 @@
 from __future__ import annotations
 
 import argparse
-import json
 import os
 import sys
 from collections.abc import Sequence
 
-from geodesy_preprocessing.common.progress import PROGRESS_PREFIX
+from geodesy_preprocessing.common.progress import ConsoleProgress
 
 from .coreg_plan import build_coreg_plan
 from .coreg_runner import CoregCommandError, run_coreg
@@ -40,18 +39,8 @@ def _parser(*, legacy: bool) -> argparse.ArgumentParser:
     parser.add_argument("--id-mode", default="date")
     parser.add_argument("--npoly", type=int, default=4)
     parser.add_argument("--bridge-mode", default="none")
+    parser.add_argument("--figure-dir")
     return parser
-
-
-class _LocalProgress:
-    def __call__(self, line: str) -> None:
-        payload = json.loads(line[len(PROGRESS_PREFIX) :])
-        index = int(payload["index"])
-        total = int(payload["total"])
-        print(
-            f"[{payload['task']}] [{index}/{total} {index / total * 100:.1f}%] "
-            f"item={payload['item']} stage={payload['stage']} status={payload['status']}"
-        )
 
 
 def _main(arguments: Sequence[str] | None, *, legacy: bool) -> int:
@@ -71,9 +60,10 @@ def _main(arguments: Sequence[str] | None, *, legacy: bool) -> int:
             id_mode=parsed.id_mode,
             npoly=parsed.npoly,
             bridge_mode=parsed.bridge_mode,
+            figure_dir=parsed.figure_dir,
         )
         recorded = os.environ.get("GEODESY_PROGRESS_PROTOCOL") == "1"
-        sink = print if recorded else _LocalProgress()
+        sink = print if recorded else ConsoleProgress()
         default_task = "PRE_S1_COREG" if legacy else "PRE_GAMMA_SAR_TOPS_COREG"
         run_coreg(
             plan,

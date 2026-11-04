@@ -44,6 +44,7 @@ class GammaTopsSlcPlan:
     azimuth_looks: int
     polarization_argument: str
     workflow: str
+    figure_dir: Path
     items: tuple[SlcItemPlan, ...]
 
 
@@ -102,11 +103,17 @@ def build_gamma_tops_slc_plan(
     azimuth_looks: int,
     polarization: str = "-",
     workflow_flag: int = 0,
+    figure_dir: str | Path | None = None,
 ) -> GammaTopsSlcPlan:
     """Validate S1-03 inputs and return deterministic SAFE/ZIP work items."""
 
     raw = _required_directory(raw_dir, "RAW directory")
     output_root = Path(slc_dir).expanduser().resolve()
+    figures = (
+        Path(figure_dir).expanduser().resolve()
+        if figure_dir is not None
+        else output_root.parent / "FIGURES/PRE/SLC"
+    )
     images = _required_file(images_file, "images file")
     burst = _required_file(burst_table, "reference burst table")
     range_count = _positive_integer(range_looks, "range looks")
@@ -164,6 +171,7 @@ def build_gamma_tops_slc_plan(
         azimuth_looks=azimuth_count,
         polarization_argument=argument,
         workflow=workflow,
+        figure_dir=figures,
         items=tuple(planned_items),
     )
 

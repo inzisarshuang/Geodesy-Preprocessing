@@ -52,10 +52,15 @@ geodesy-pre-gamma-rslc-crop --config PROJECT/config/preprocessing/gamma_rslc_cro
 geodesy-pre-gamma-rslc-crop --config PROJECT/config/preprocessing/gamma_rslc_crop.cfg --case main
 ```
 
-先查看缓冲后的 KML 覆盖率与统一裁剪窗口。完成标志是输出目录存在可读取的
-`registered_stack.json`、`images`、`crop_window.json`，并且所选日期和极化全部存在。
+先查看缓冲后的 KML 覆盖率与统一裁剪窗口；即使正式裁剪目录当前不完整，计划检查也
+不会因此失败。正式运行只复用清单完整且输入签名一致的结果；残缺或输入变化时停止，
+不会替换旧输出，应检查后删除旧目录或修改 `output_dir`。
+完成标志是输出目录存在可读取的 `registered_stack.json`、`images`、
+`crop_window.json`，并且所选日期和极化全部存在。
 
 ## 日志和交接
 
 Workflow 日志位于 `PROJECT/LOG/PRE/`；GAMMA 逐景 stdout/stderr 也保留在阶段输出的
 `logs/日期/极化/`。将最终裁剪栈的 `registered_stack.json` 交给 `Geodesy-Analysis`。
+预处理快视图集中在方法根目录的 `FIGURES/PRE/SLC`、`RSLC_GEOCODING`、`RSLC` 和
+`RSLC_SUBSET`，科学目录不再保存重复 BMP/PNG。
