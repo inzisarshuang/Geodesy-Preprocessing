@@ -33,9 +33,8 @@ RSLC/GSLC 裁剪及预处理质量检查。基线选择、干涉图、相干性�
 ```text
 Geodesy-Preprocessing/
 ├── config_examples/                 # 按项目阶段分类的 CFG 模板
-│   ├── acquisition/                 # SAR 查询和下载
-│   ├── topography/                  # DEM 获取与转换
-│   └── preprocessing/               # SLC、参考几何、配准与裁剪
+│   ├── 1-1acquisition/              # SAR/DEM 查询和下载
+│   └── 1-2preprocessing/            # SLC、参考几何、配准与裁剪
 ├── docs/
 │   ├── architecture.md              # 仓库边界与源码架构
 │   ├── workflows/                   # 总路线及各产品完整流程
@@ -181,8 +180,8 @@ CFG 属于具体研究区，应复制到项目目录后修改，不直接修改�
 
 ```bash
 PROJECT=/path/to/research_project
-mkdir -p "$PROJECT/config/acquisition" "$PROJECT/config/topography" "$PROJECT/config/preprocessing" "$PROJECT/TOPOGRAPHY" "$PROJECT/S1/QUERY" "$PROJECT/S1/DOWNLOAD"
-cp config_examples/topography/opentopo_dem_download.cfg "$PROJECT/config/topography/"
+mkdir -p "$PROJECT/config/0acquisition" "$PROJECT/config/1preprocessing" "$PROJECT/TOPOGRAPHY" "$PROJECT/S1/QUERY" "$PROJECT/S1/DOWNLOAD"
+cp config_examples/1-1acquisition/opentopo_dem_download.cfg "$PROJECT/config/0acquisition/"
 ```
 
 再复制所选路线需要的 CFG。模板顶部给出正式命令和示例，参数块标明哪些内容必填、
@@ -197,40 +196,41 @@ OpenTopography 模板默认在下载后执行 GAMMA `srtm2dem`；只需要公共
 
 ```bash
 # DEM：先检查范围，再下载并按 CFG 决定是否转换为 GAMMA DEM
-geodesy-pre-dem --config "$PROJECT/config/topography/opentopo_dem_download.cfg" --dry-run
-geodesy-pre-dem --config "$PROJECT/config/topography/opentopo_dem_download.cfg"
+geodesy-pre-dem --config "$PROJECT/config/0acquisition/opentopo_dem_download.cfg" --dry-run
+geodesy-pre-dem --config "$PROJECT/config/0acquisition/opentopo_dem_download.cfg"
 
 # Sentinel-1：先查询和人工检查覆盖，再下载
 geodesy-pre-sar-sentinel1-acquire \
-  --config "$PROJECT/config/acquisition/sentinel1_download.cfg" --case main --query
+  --config "$PROJECT/config/0acquisition/sentinel1_download.cfg" --case main --query
 geodesy-pre-sar-sentinel1-acquire \
-  --config "$PROJECT/config/acquisition/sentinel1_download.cfg" --case main --download
+  --config "$PROJECT/config/0acquisition/sentinel1_download.cfg" --case main --download
 ```
 
 完整 SLC 不需要 BURST 合并；BURST 下载后增加 `--merge`。SLC 生成、参考几何、配准和
 裁剪的后续命令见对应流程文档。裁剪阶段应先执行 `--plan-only` 检查 KML 缓冲范围。
 
-## 6. Project Data And Logs / 工程数据与日志
+## 6. Data And Output Behavior / 数据与输出行为
 
 ### 6.1 Recommended Project Layout / 推荐工程目录
 
 ```text
 RESEARCH_PROJECT/
 ├── config/
-│   ├── acquisition/                    # SAR 查询和下载 CFG
-│   ├── topography/                     # DEM 获取与转换 CFG
-│   └── preprocessing/                  # SLC、配准和裁剪 CFG
+│   ├── 0acquisition/                   # SAR/DEM 查询和下载 CFG
+│   └── 1preprocessing/                 # SLC、配准和裁剪 CFG
 ├── TOPOGRAPHY/
 │   ├── catalog.json
 │   └── <dataset_id>/{SOURCE,GAMMA}/    # 可被多个轨道复用的 DEM 数据集
 └── S1/
     ├── QUERY/
     ├── DOWNLOAD/<CASE>/
-    └── ASCENDING_128/
-        ├── PRE/GAMMA/{SLC,GEOMETRY,RSLC,RSLC_SUBSET}/
-        ├── ANALYSIS/GAMMA/              # 由 Geodesy-Analysis 管理
-        ├── VISUALIZATION/GAMMA/         # 由绘图仓库管理
-        └── LOG/PRE/GAMMA/
+    └── ASCENDING_128/GAMMA/             # 方法根目录
+        ├── SLC/
+        ├── RSLC/
+        │   ├── GEOCODING/               # RSLC 配准参考几何
+        │   └── SUBSET/                  # 裁剪后的注册栈
+        ├── FIGURES/PRE/                 # 预处理质检图
+        └── LOG/PRE/                     # 预处理日志
 ```
 
 代码仓库只保存通用实现和空白模板。研究区 KML、填写后的 CFG、下载产品、中间结果和
@@ -273,3 +273,11 @@ git diff --check
 不得向 CFG、README、测试夹具或 Git 历史提交真实凭据和受限制项目数据。建议长期凭据
 保存在权限为 `600` 的 `~/.netrc`；临时令牌仅设置在当前终端环境。若密钥泄露，应立即
 吊销并更换，同时清理仓库历史。
+
+## 9. License Notice / 许可说明
+
+No standalone license file is currently included. Confirm usage and redistribution
+terms before distributing this repository or derived software.
+
+本仓库当前未包含独立许可证文件。在分发本仓库或衍生软件前，请先确认使用与再分发
+条款。
