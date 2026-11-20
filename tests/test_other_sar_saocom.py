@@ -98,6 +98,24 @@ class SaocomAdapterTests(unittest.TestCase):
             ),
         )
 
+    def test_acquisition_date_in_xml_overrides_directory_production_date(self) -> None:
+        scene = write_saocom_product(
+            self.raw,
+            date="20210324",
+            scene_name="S1A_OPER_SAR_EOSSP__CORE_L1A_OLF_20210324T005517",
+        )
+        (scene / "Data/A.xml").write_text(
+            "<SAOCOM_XMLProduct><DataSetInfo>"
+            "<SenseDate>2021-MAR-21</SenseDate>"
+            "<LinesStart unit=\"Utc\">21-MAR-2021 23:01:08.000000000</LinesStart>"
+            "</DataSetInfo></SAOCOM_XMLProduct>\n",
+            encoding="utf-8",
+        )
+
+        product = SaocomAdapter().discover(self._case(("HH",)))[0]
+
+        self.assertEqual(product.date, "20210321")
+
     def test_missing_ambiguous_pairs_and_duplicate_dates_are_rejected(self) -> None:
         scene = write_saocom_product(self.raw, date="20260922")
         (scene / "Data/A.bin").unlink()

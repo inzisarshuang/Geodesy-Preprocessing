@@ -57,7 +57,7 @@ class GammaTopsSlcNamespaceTests(unittest.TestCase):
 
     def test_canonical_template_is_operationally_documented(self) -> None:
         root = Path(__file__).resolve().parents[1]
-        template = root / "config_examples/preprocessing/gamma_slc_tops.cfg"
+        template = root / "config_examples/preprocess/gamma_slc_tops.cfg"
         required_text = (
             "功能用途",
             "适用范围",

@@ -6,8 +6,8 @@ GSLC 已位于地图网格，不需要 GAMMA 配准。Native 路线检查多日�
 ## 查询和下载
 
 ```bash
-geodesy-pre-sar-nisar-acquire --config PROJECT/config/acquisition/nisar_gslc_download.cfg --case main --query
-geodesy-pre-sar-nisar-acquire --config PROJECT/config/acquisition/nisar_gslc_download.cfg --case main --download
+geodesy-pre-sar-nisar-acquire --config PROJECT/config/download/nisar_gslc_download.cfg --case main --query
+geodesy-pre-sar-nisar-acquire --config PROJECT/config/download/nisar_gslc_download.cfg --case main --download
 ```
 
 人工检查覆盖图和筛选 CSV 后再下载。Earthdata 凭据只从 `~/.netrc` 或环境变量读取；
@@ -16,8 +16,8 @@ CFG 不保存账号。完成时应有 `.h5` 和 `source_manifest.json`，且没�
 ## 检查网格和裁剪 LA
 
 ```bash
-geodesy-pre-sar-nisar-gslc --config PROJECT/config/preprocessing/nisar_gslc_stack.cfg --case la --plan-only
-geodesy-pre-sar-nisar-gslc --config PROJECT/config/preprocessing/nisar_gslc_stack.cfg --case la
+geodesy-pre-sar-nisar-gslc --config PROJECT/config/preprocess/nisar_gslc_stack.cfg --case la --dry-run
+geodesy-pre-sar-nisar-gslc --config PROJECT/config/preprocess/nisar_gslc_stack.cfg --case la
 ```
 
 `--plan-only` 必须确认 CRS、带符号像元间距、原点、形状、日期和极化一致。正式运行

@@ -1,12 +1,10 @@
-"""NISAR GSLC 输入身份、计划记录和正式目录原子发布。
+"""NISAR GSLC 输入身份和正式目录原子发布。
 
 功能概述:
-    为影响栈结果的配置与输入生成稳定摘要，把 plan-only 记录写入项目日志，并只在
-    目标不存在时用同文件系统原子改名发布完整目录。
+    为影响栈结果的配置与输入生成稳定摘要，并用同文件系统原子改名发布完整目录。
 
 函数说明:
-    ``gslc_input_signature`` 计算输入摘要；``publish_gslc_plan`` 发布无凭据计划 JSON；
-    ``atomic_publish_gslc`` 原子发布 staging 且绝不自动替换正式结果。
+    ``gslc_input_signature`` 计算输入摘要；``atomic_publish_gslc`` 原子发布 staging。
 """
 
 from __future__ import annotations
@@ -14,7 +12,6 @@ from __future__ import annotations
 import hashlib
 import json
 import os
-import tempfile
 from pathlib import Path
 
 from .models import NisarGslcStackPlan
@@ -78,69 +75,8 @@ def gslc_input_signature(plan: NisarGslcStackPlan) -> str:
     return hashlib.sha256(encoded).hexdigest()
 
 
-def _plan_payload(plan: NisarGslcStackPlan) -> dict[str, object]:
-    return {
-        "assets": len(plan.assets),
-        "band": plan.case.band,
-        "buffer_km": plan.case.buffer_km,
-        "buffered_coverage": dict(plan.buffered_coverage),
-        "dates": list(plan.dates),
-        "frame": plan.frame,
-        "frequency": plan.case.frequency,
-        "grid": {
-            "center_frequency_hz": plan.grid.center_frequency_hz,
-            "epsg": plan.grid.epsg,
-            "shape": list(plan.grid.shape),
-            "x_spacing": plan.grid.x_spacing,
-            "x_start": plan.grid.x_start,
-            "y_spacing": plan.grid.y_spacing,
-            "y_start": plan.grid.y_start,
-        },
-        "input_signature": gslc_input_signature(plan),
-        "orbit_direction": plan.orbit_direction,
-        "output_dir": _relative(plan.case.output_dir, plan.case.project_root),
-        "polarizations": list(plan.selected_polarizations),
-        "reference_date": plan.reference_date,
-        "roi_coverage": dict(plan.roi_coverage),
-        "status": "planned",
-        "track": plan.track,
-        "window": {
-            "column_start": plan.window.column_start,
-            "column_stop": plan.window.column_stop,
-            "row_start": plan.window.row_start,
-            "row_stop": plan.window.row_stop,
-            "shape": list(plan.window.shape),
-        },
-    }
-
-
-def publish_gslc_plan(plan: NisarGslcStackPlan) -> Path:
-    """Atomically write one plan-only JSON under the project's PRE log tree."""
-
-    destination = (
-        plan.case.project_root / "LOG/PRE/NISAR/GSLC" / plan.case.name / "plan.json"
-    )
-    destination.parent.mkdir(parents=True, exist_ok=True)
-    encoded = (
-        json.dumps(_plan_payload(plan), ensure_ascii=False, sort_keys=True, indent=2) + "\n"
-    ).encode("utf-8")
-    descriptor, name = tempfile.mkstemp(
-        prefix=f".{destination.name}.", suffix=".tmp", dir=destination.parent
-    )
-    temporary = Path(name)
-    try:
-        with os.fdopen(descriptor, "wb") as stream:
-            stream.write(encoded)
-            stream.flush()
-            os.fsync(stream.fileno())
-        os.replace(temporary, destination)
-    finally:
-        temporary.unlink(missing_ok=True)
-    return destination
-
-
 def atomic_publish_gslc(staging: str | Path, output: str | Path) -> None:
-    """Publish one complete staging directory without replacing an existing result."""
+    """Publish one complete staging directory, replacing an existing result."""
 
     source = Path(staging).resolve(strict=True)
     destination = Path(output).resolve()
@@ -149,9 +85,21 @@ def atomic_publish_gslc(staging: str | Path, output: str | Path) -> None:
     destination.parent.mkdir(parents=True, exist_ok=True)
     if source.parent != destination.parent:
         raise ValueError("GSLC staging and output must have the same parent directory")
-    if destination.exists():
-        raise FileExistsError(f"GSLC stack output already exists: {destination}")
-    os.replace(source, destination)
+    backup = destination.parent / f".{destination.name}.backup"
+    if backup.exists():
+        raise FileExistsError(f"GSLC backup path already exists: {backup}")
+    if destination.exists() or destination.is_symlink():
+        os.replace(destination, backup)
+    try:
+        os.replace(source, destination)
+    except BaseException:
+        if backup.exists():
+            os.replace(backup, destination)
+        raise
+    if backup.exists():
+        import shutil
+
+        shutil.rmtree(backup)
 
 
-__all__ = ["atomic_publish_gslc", "gslc_input_signature", "publish_gslc_plan"]
+__all__ = ["atomic_publish_gslc", "gslc_input_signature"]

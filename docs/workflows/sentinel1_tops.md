@@ -9,9 +9,9 @@
 检查覆盖图、CSV 与 `images_NNN`，确认后再下载。BURST 产品下载后还要合并 SAFE。
 
 ```bash
-geodesy-pre-sar-sentinel1-acquire --config PROJECT/config/acquisition/sentinel1_download.cfg --case main --query
-geodesy-pre-sar-sentinel1-acquire --config PROJECT/config/acquisition/sentinel1_download.cfg --case main --download
-geodesy-pre-sar-sentinel1-acquire --config PROJECT/config/acquisition/sentinel1_download.cfg --case main --merge
+geodesy-pre-sar-sentinel1-acquire --config PROJECT/config/download/sentinel1_download.cfg --case main --query
+geodesy-pre-sar-sentinel1-acquire --config PROJECT/config/download/sentinel1_download.cfg --case main --download
+geodesy-pre-sar-sentinel1-acquire --config PROJECT/config/download/sentinel1_download.cfg --case main --merge
 ```
 
 Earthdata 凭据仅从 `~/.netrc` 或环境变量读取。完整 SLC 不运行 `--merge`；BURST 完成
@@ -28,7 +28,7 @@ Earthdata 凭据仅从 `~/.netrc` 或环境变量读取。完整 SLC 不运行 `
 `S1-02get_burst_table`。自动生成目前用于 SAFE 流程；传统 ZIP 流程仍需提供现成表。
 
 ```bash
-geodesy-pre-gamma-slc-tops --config PROJECT/config/preprocessing/gamma_slc_tops.cfg --case main
+geodesy-pre-gamma-slc-tops --config PROJECT/config/preprocess/gamma_slc_tops.cfg --case main
 ```
 
 参考表和 `burst_itab_*` 保存在 `burst_table` 指定目录；如果
@@ -39,8 +39,8 @@ geodesy-pre-gamma-slc-tops --config PROJECT/config/preprocessing/gamma_slc_tops.
 先按[DEM 流程](dem.md)准备 GAMMA DEM，再运行：
 
 ```bash
-geodesy-pre-gamma-geo-ref-tops --config PROJECT/config/preprocessing/gamma_geo_ref_tops.cfg --case main
-geodesy-pre-gamma-coreg-tops --config PROJECT/config/preprocessing/gamma_coreg_tops.cfg --case main
+geodesy-pre-gamma-geo-ref-tops --config PROJECT/config/preprocess/gamma_geo_ref_tops.cfg --case main
+geodesy-pre-gamma-coreg-tops --config PROJECT/config/preprocess/gamma_coreg_tops.cfg --case main
 ```
 
 参考日期必须存在于 SLC 栈。配准完成后检查 RSLC 日期数、质量文件和失败日志。
@@ -48,8 +48,8 @@ geodesy-pre-gamma-coreg-tops --config PROJECT/config/preprocessing/gamma_coreg_t
 ## 按研究区裁剪
 
 ```bash
-geodesy-pre-gamma-rslc-crop --config PROJECT/config/preprocessing/gamma_rslc_crop.cfg --case main --plan-only
-geodesy-pre-gamma-rslc-crop --config PROJECT/config/preprocessing/gamma_rslc_crop.cfg --case main
+geodesy-pre-gamma-rslc-crop --config PROJECT/config/preprocess/gamma_rslc_crop.cfg --case main --plan-only
+geodesy-pre-gamma-rslc-crop --config PROJECT/config/preprocess/gamma_rslc_crop.cfg --case main
 ```
 
 先查看缓冲后的 KML 覆盖率与统一裁剪窗口；即使正式裁剪目录当前不完整，计划检查也

@@ -191,7 +191,7 @@ def convert_with_srtm2dem(
     existing = [str(path) for path in destinations if path.exists()]
     if existing and not overwrite:
         raise FileExistsError(
-            "srtm2dem output already exists; enable overwrite to replace it: "
+            "srtm2dem output already exists and will be replaced: "
             + ", ".join(existing)
         )
 

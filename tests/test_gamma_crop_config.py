@@ -16,9 +16,9 @@ class GammaCropConfigTests(unittest.TestCase):
 
     def _config(self, root: Path, *, polarizations: str = "VV") -> Path:
         project = root / "study"
-        directory = project / "config/preprocessing"
+        directory = project / "config/preprocess"
         directory.mkdir(parents=True)
-        path = directory / "gamma_sar_rslc_crop.cfg"
+        path = directory / "gamma_rslc_crop.cfg"
         path.write_text(
             f"""[project]
 root = ../..

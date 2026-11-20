@@ -29,7 +29,10 @@ class PreprocessingCaseLayoutTests(unittest.TestCase):
                 project / "S1/ASCENDING_128/GAMMA",
             )
             self.assertEqual(layout.config_root, project / "config")
-            self.assertEqual(layout.config("preprocessing"), project / "config/1preprocessing")
+            self.assertEqual(layout.config("download"), project / "config/download")
+            self.assertEqual(layout.config("acquisition"), project / "config/download")
+            self.assertEqual(layout.config("preprocess"), project / "config/preprocess")
+            self.assertEqual(layout.config("preprocessing"), project / "config/preprocess")
             self.assertEqual(
                 layout.acquisition_manifest,
                 project / "S1/ASCENDING_128/acquisition_manifest.json",

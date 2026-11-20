@@ -129,7 +129,7 @@ class SlcConfigTests(unittest.TestCase):
     def test_selected_case_uses_method_root_defaults_without_validating_other_cases(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             project = Path(directory) / "study"
-            config_dir = project / "config" / "1preprocessing"
+            config_dir = project / "config" / "preprocess"
             config_dir.mkdir(parents=True)
             config = config_dir / "gamma_slc_tops.cfg"
             config.write_text(
@@ -169,7 +169,7 @@ processing_root = outside/the/case
     def test_selected_case_respects_safe_explicit_output_and_figure_directories(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             project = Path(directory) / "study"
-            config_dir = project / "config" / "1preprocessing"
+            config_dir = project / "config" / "preprocess"
             config_dir.mkdir(parents=True)
             config = config_dir / "gamma_slc_tops.cfg"
             config.write_text(

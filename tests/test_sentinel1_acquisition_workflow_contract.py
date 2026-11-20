@@ -36,7 +36,7 @@ class Sentinel1AcquisitionWorkflowContractTests(unittest.TestCase):
     def test_query_and_download_paths_feed_tops_slc_without_path_guessing(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             project = Path(directory)
-            config_dir = project / "config/preprocessing"
+            config_dir = project / "config/preprocess"
             config_dir.mkdir(parents=True)
             (project / "AOI").mkdir()
             (project / "AOI/a.kml").write_text("<kml/>")
@@ -84,7 +84,7 @@ burst_table = WORK/GAMMA/S1_WORK_154/ref_burst_number_table_154
 
     def test_all_three_products_remain_discoverable_in_template(self) -> None:
         template = (
-            ROOT / "config_examples/acquisition/sentinel1_download.cfg"
+            ROOT / "config_examples/download/sentinel1_download.cfg"
         ).read_text(encoding="utf-8")
         for product in ("BURST", "SLC", "GRD"):
             self.assertIn(product, template)

@@ -80,6 +80,20 @@ class Sentinel1SearchTests(unittest.TestCase):
             AsfSentinel1SearchClient().search(case)
         self.assertEqual(call.call_args.kwargs["dataset"], ["SLC-BURST"])
 
+    def test_accepts_zero_based_asf_burst_index(self) -> None:
+        record = copy.deepcopy(self.records[1])
+        record["properties"]["burst"]["burstIndex"] = 0
+
+        try:
+            product = search_sentinel1(
+                replace(self.case, product_type=Sentinel1ProductType.BURST),
+                _Client([record]),
+            )[0]
+        except ValueError as error:
+            self.fail(f"ASF zero-based burstIndex was rejected: {error}")
+
+        self.assertEqual(product.burst_index, 0)
+
     def test_rejects_malformed_or_incomplete_records_with_identity(self) -> None:
         required = ("startTime", "pathNumber", "orbit", "url", "bytes")
         for key in required:

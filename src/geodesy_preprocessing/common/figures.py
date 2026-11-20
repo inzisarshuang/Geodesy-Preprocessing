@@ -1,4 +1,16 @@
-"""Central publication and repair helpers for preprocessing quicklooks."""
+"""Central publication and repair helpers for preprocessing quicklooks.
+
+功能概述:
+    将预处理产生的快视图集中发布到项目 ``FIGURES/PRE``，检查清单中声明的
+    快视图是否完整，并在不修改科学产品的前提下修复缺失图件。
+
+函数说明:
+    ``FigureProduct`` 描述一个快视图目标及渲染命令；
+    ``centralize_pre_figures`` 原子集中发布已有快视图；
+    ``pre_figures_complete`` 检查声明图件是否完整；
+    ``required_pre_figures`` 解析清单中的图件记录；
+    ``repair_pre_figures`` 只重新生成缺失图件。
+"""
 
 from __future__ import annotations
 

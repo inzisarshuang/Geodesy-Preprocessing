@@ -24,6 +24,25 @@ class InstalledArchitectureV2Tests(unittest.TestCase):
             metadata = tomllib.load(stream)
         self.assertEqual(metadata["project"]["version"], "0.8.0")
 
+    def test_clean_clone_contains_runtime_burst_module_and_packaged_cfgs(self) -> None:
+        """Catch required files that work locally only because Git ignores them."""
+
+        required = (
+            "src/geodesy_preprocessing/sar/slc_generation/gamma/tops/burst_prepare.py",
+            "config_examples/download/sentinel1_download.cfg",
+            "config_examples/preprocess/gamma_slc_tops.cfg",
+        )
+        completed = subprocess.run(
+            ("git", "ls-files", "--error-unmatch", *required),
+            cwd=ROOT,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            check=False,
+        )
+
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+
     def test_wheel_contains_new_packages_commands_and_templates(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             temporary = Path(directory)
@@ -64,16 +83,17 @@ class InstalledArchitectureV2Tests(unittest.TestCase):
                     "sar/rslc_registration/gamma/tops/coreg_runner.py",
                     "sar/rslc_registration/gamma/radar_grid/coreg_runner.py",
                     "sar/slc_generation/gamma/tops/runner.py",
+                    "sar/slc_generation/gamma/tops/burst_prepare.py",
                     "sar/slc_generation/gamma/radar_grid/runner.py",
                     "sar/rslc_subsetting/gamma/radar_grid/cli.py",
-                    "share/geodesy-preprocessing/config_examples/preprocessing/gamma_coreg_tops.cfg",
-                    "share/geodesy-preprocessing/config_examples/preprocessing/gamma_geo_ref_grid.cfg",
-                    "share/geodesy-preprocessing/config_examples/preprocessing/gamma_coreg_grid.cfg",
-                    "share/geodesy-preprocessing/config_examples/preprocessing/gamma_rslc_crop.cfg",
-                    "share/geodesy-preprocessing/config_examples/acquisition/nisar_rslc_download.cfg",
-                    "share/geodesy-preprocessing/config_examples/acquisition/nisar_gslc_download.cfg",
-                    "share/geodesy-preprocessing/config_examples/preprocessing/nisar_gslc_stack.cfg",
-                    "share/geodesy-preprocessing/config_examples/acquisition/sentinel1_download.cfg",
+                    "share/geodesy-preprocessing/config_examples/preprocess/gamma_coreg_tops.cfg",
+                    "share/geodesy-preprocessing/config_examples/preprocess/gamma_geo_ref_grid.cfg",
+                    "share/geodesy-preprocessing/config_examples/preprocess/gamma_coreg_grid.cfg",
+                    "share/geodesy-preprocessing/config_examples/preprocess/gamma_rslc_crop.cfg",
+                    "share/geodesy-preprocessing/config_examples/download/nisar_rslc_download.cfg",
+                    "share/geodesy-preprocessing/config_examples/download/nisar_gslc_download.cfg",
+                    "share/geodesy-preprocessing/config_examples/preprocess/nisar_gslc_stack.cfg",
+                    "share/geodesy-preprocessing/config_examples/download/sentinel1_download.cfg",
                 ):
                     self.assertTrue(any(name.endswith(suffix) for name in names), suffix)
                 removed_templates = {

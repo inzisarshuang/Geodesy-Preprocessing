@@ -23,6 +23,28 @@ final model fit std. dev. (samples) range: 0.0242 azimuth: 0.0204
 end of SLC_coreg.py
 """
 
+MULTI_STAGE_QUALITY = """SLC coregistration quality file
+final solution: 259 offset estimates accepted out of 576 samples
+final range offset poly. coeff.: 0.35304
+final azimuth offset poly. coeff.: -0.23720
+final model fit std. dev. (samples) range: 0.0180 azimuth: 0.0102
+
+first co-registration refinement using MLIs:
+final solution: 7480 offset estimates accepted out of 16384 samples
+final range offset poly. coeff.: 0.48590
+final azimuth offset poly. coeff.: -0.52682
+final model fit std. dev. (samples) range: 0.0183 azimuth: 0.0134
+
+co-registration quality test result:
+final solution: 10492 offset estimates accepted out of 16384 samples
+final range offset poly. coeff.: -0.00254
+final range offset poly. coeff. errors: 4.55806e-04
+final azimuth offset poly. coeff.: 0.00520
+final azimuth offset poly. coeff. errors: 9.87502e-04
+final model fit std. dev. (samples) range: 0.0257 azimuth: 0.0556
+end of SLC_coreg.py, elapsed time (s): 103.559233
+"""
+
 
 class GammaRadarCoregQualityTests(unittest.TestCase):
     """Parse the final fit only and block absent or hard-failure metrics."""
@@ -39,6 +61,20 @@ class GammaRadarCoregQualityTests(unittest.TestCase):
         self.assertEqual((quality.accepted_offsets, quality.total_offsets), (3418, 4096))
         self.assertEqual((quality.range_stddev, quality.azimuth_stddev), (0.0242, 0.0204))
         self.assertEqual((quality.range_residual, quality.azimuth_residual), (-0.04622, -0.01461))
+
+    def test_parses_only_the_final_quality_section_from_real_slc_coreg_report(self) -> None:
+        quality = self._quality(MULTI_STAGE_QUALITY)
+        self.assertEqual((quality.accepted_offsets, quality.total_offsets), (10492, 16384))
+        self.assertEqual((quality.range_stddev, quality.azimuth_stddev), (0.0257, 0.0556))
+        self.assertEqual((quality.range_residual, quality.azimuth_residual), (-0.00254, 0.00520))
+
+    def test_malformed_final_quality_section_is_not_hidden_by_earlier_metrics(self) -> None:
+        malformed = MULTI_STAGE_QUALITY.replace(
+            "final solution: 10492 offset estimates accepted out of 16384 samples",
+            "solution: 10492 offset estimates accepted out of 16384 samples",
+        )
+        with self.assertRaisesRegex(ValueError, "final solution"):
+            self._quality(malformed)
 
     def test_unparseable_quality_blocks_stack_publication(self) -> None:
         for text in ("", QUALITY.replace("final solution:", "solution:"), QUALITY.replace("end of SLC_coreg.py", "")):

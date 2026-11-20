@@ -67,8 +67,6 @@ def _grid_identity(grid: GammaRadarGrid) -> tuple[int, int, str]:
 
 def build_crop_plan(
     config: GammaRadarCropConfig,
-    *,
-    allow_incomplete_output: bool = False,
 ) -> GammaRadarCropPlan:
     """Validate a crop case without running GAMMA or creating output products."""
 
@@ -90,8 +88,6 @@ def build_crop_plan(
             (output / name).is_file()
             for name in ("registered_stack.json", "crop_window.json")
         )
-        if not existing_complete and not allow_incomplete_output:
-            raise FileExistsError(f"incomplete or conflicting crop output exists: {output}")
 
     selected = manifest.polarizations if config.polarizations is None else config.polarizations
     missing = tuple(value for value in selected if value not in manifest.polarizations)

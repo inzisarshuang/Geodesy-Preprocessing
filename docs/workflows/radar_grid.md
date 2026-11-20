@@ -9,8 +9,8 @@
 在 `gamma_slc_grid.cfg` 中选择传感器适配器、原始产品目录、极化和输出位置：
 
 ```bash
-geodesy-pre-gamma-slc-grid --config PROJECT/config/preprocessing/gamma_slc_grid.cfg --case main --dry-run
-geodesy-pre-gamma-slc-grid --config PROJECT/config/preprocessing/gamma_slc_grid.cfg --case main
+geodesy-pre-gamma-slc-grid --config PROJECT/config/preprocess/gamma_slc_grid.cfg --case main --dry-run
+geodesy-pre-gamma-slc-grid --config PROJECT/config/preprocess/gamma_slc_grid.cfg --case main
 ```
 
 完成时 `slc_dir` 中应有每个日期/极化的复数 SLC 与参数文件，`images_file` 日期唯一且
@@ -21,8 +21,8 @@ geodesy-pre-gamma-slc-grid --config PROJECT/config/preprocessing/gamma_slc_grid.
 按[DEM 流程](dem.md)准备 GAMMA DEM，在 `gamma_geo_ref_grid.cfg` 中选择参考日期和主极化：
 
 ```bash
-geodesy-pre-gamma-geo-ref-grid --config PROJECT/config/preprocessing/gamma_geo_ref_grid.cfg --case main --dry-run
-geodesy-pre-gamma-geo-ref-grid --config PROJECT/config/preprocessing/gamma_geo_ref_grid.cfg --case main
+geodesy-pre-gamma-geo-ref-grid --config PROJECT/config/preprocess/gamma_geo_ref_grid.cfg --case main --dry-run
+geodesy-pre-gamma-geo-ref-grid --config PROJECT/config/preprocess/gamma_geo_ref_grid.cfg --case main
 ```
 
 完成标志是 `reference_geometry.json` 以及对应 lookup、雷达坐标高程和质量文件完整。
@@ -33,8 +33,8 @@ geodesy-pre-gamma-geo-ref-grid --config PROJECT/config/preprocessing/gamma_geo_r
 分辨率明显变化或弱相关时，再结合质量日志调整窗口、估计点数和相关阈值。
 
 ```bash
-geodesy-pre-gamma-coreg-grid --config PROJECT/config/preprocessing/gamma_coreg_grid.cfg --case main --dry-run
-geodesy-pre-gamma-coreg-grid --config PROJECT/config/preprocessing/gamma_coreg_grid.cfg --case main
+geodesy-pre-gamma-coreg-grid --config PROJECT/config/preprocess/gamma_coreg_grid.cfg --case main --dry-run
+geodesy-pre-gamma-coreg-grid --config PROJECT/config/preprocess/gamma_coreg_grid.cfg --case main
 ```
 
 完成时 `registered_stack.json`、`quality.json` 和 `provenance.json` 必须可读，且日期×极化
@@ -48,8 +48,8 @@ geodesy-pre-gamma-coreg-grid --config PROJECT/config/preprocessing/gamma_coreg_g
 ## 裁剪和交接
 
 ```bash
-geodesy-pre-gamma-rslc-crop --config PROJECT/config/preprocessing/gamma_rslc_crop.cfg --case main --plan-only
-geodesy-pre-gamma-rslc-crop --config PROJECT/config/preprocessing/gamma_rslc_crop.cfg --case main
+geodesy-pre-gamma-rslc-crop --config PROJECT/config/preprocess/gamma_rslc_crop.cfg --case main --plan-only
+geodesy-pre-gamma-rslc-crop --config PROJECT/config/preprocess/gamma_rslc_crop.cfg --case main
 ```
 
 `--plan-only` 可在目标裁剪目录尚有旧文件或不完整内容时检查范围，不会触碰正式裁剪

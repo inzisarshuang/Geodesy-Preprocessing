@@ -31,16 +31,21 @@ class GeoRefConfigTests(unittest.TestCase):
         (dem / "srtm.dem.par").write_text("width: 2\n", encoding="ascii")
         scene = project / "RAW_2024" / "SLC_154" / "20240905"
         scene.mkdir(parents=True)
-        for suffix in ("vv.SLC_tab", "vv.iw1.slc", "vv.iw1.slc.par"):
+        for suffix in ("vv.iw1.slc", "vv.iw1.slc.par", "vv.iw1.slc.tops_par"):
             (scene / f"20240905.{suffix}").write_bytes(b"slc")
+        (scene / "20240905.vv.SLC_tab").write_text(
+            "20240905.vv.iw1.slc 20240905.vv.iw1.slc.par "
+            "20240905.vv.iw1.slc.tops_par\n",
+            encoding="utf-8",
+        )
         output = project / "RAW_2024" / "DEM_geocode_154"
         if complete:
             output.mkdir()
             for suffix in (".lt_fine", ".utm.dem", ".utm.dem.par", ".mli.utm", ".hgt_sim"):
                 (output / f"20240905{suffix}").write_bytes(b"complete")
-        config_dir = project / "config" / "preprocessing"
+        config_dir = project / "config" / "preprocess"
         config_dir.mkdir(parents=True)
-        config = config_dir / "gamma_sar_tops_geo_ref.cfg"
+        config = config_dir / "gamma_geo_ref_tops.cfg"
         config.write_text(
             "[project]\n"
             "root = ../..\n\n"

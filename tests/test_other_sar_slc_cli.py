@@ -28,7 +28,7 @@ class OtherSarSlcCliTests(unittest.TestCase):
         self.root = Path(self.temporary.name)
         (self.root / "RAW/main").mkdir(parents=True)
         write_cosmo_product(self.root / "RAW/main", sensor="csg", date="20260922")
-        self.config = self.root / "gamma_sar_slc.cfg"
+        self.config = self.root / "gamma_slc_grid.cfg"
 
     def tearDown(self) -> None:
         self.temporary.cleanup()

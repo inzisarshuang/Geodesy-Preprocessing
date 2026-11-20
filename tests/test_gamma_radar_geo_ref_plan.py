@@ -91,6 +91,21 @@ class GammaRadarGeoRefPlanTests(unittest.TestCase):
         self.assertFalse(plan.skip)
         self.assertFalse(self.output.exists())
 
+    def test_accepts_flat_slc_layout_written_by_saocom_adapter(self) -> None:
+        nested = self.slc / "HH_SLC/20240229"
+        flat = nested.parent
+        (nested / "20240229.slc").replace(flat / "20240229.slc")
+        (nested / "20240229.slc.par").replace(flat / "20240229.slc.par")
+        nested.rmdir()
+
+        plan = build_gamma_radar_geo_ref_plan(self._case())
+
+        self.assertEqual(plan.reference_asset.data_path, (flat / "20240229.slc").resolve())
+        self.assertEqual(
+            plan.reference_asset.parameter_path,
+            (flat / "20240229.slc.par").resolve(),
+        )
+
     def test_missing_reference_files_or_inventory_date_are_rejected(self) -> None:
         reference = self.slc / "HH_SLC/20240229/20240229.slc"
         reference.unlink()

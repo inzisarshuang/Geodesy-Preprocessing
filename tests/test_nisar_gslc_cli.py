@@ -16,7 +16,7 @@ from tests.fixtures.nisar_gslc_plan import make_gslc_plan
 
 
 class NisarGslcCliTests(unittest.TestCase):
-    """Keep named selection, plan-only separation, progress, and exit codes stable."""
+    """Keep named selection, dry-run separation, progress, and exit codes stable."""
 
     def setUp(self) -> None:
         self.temporary = tempfile.TemporaryDirectory()
@@ -29,26 +29,22 @@ class NisarGslcCliTests(unittest.TestCase):
     def tearDown(self) -> None:
         self.temporary.cleanup()
 
-    def test_plan_only_selects_named_case_and_never_runs_stack(self) -> None:
+    def test_dry_run_selects_named_case_and_never_runs_stack(self) -> None:
         output = io.StringIO()
-        plan_path = self.root / "plan.json"
         with mock.patch.object(cli, "load_nisar_gslc_stack_config", return_value=(self.case,)), mock.patch.object(
             cli, "select_nisar_gslc_stack_case", return_value=self.case
         ) as select, mock.patch.object(
             cli, "build_nisar_gslc_stack_plan", return_value=self.plan
         ), mock.patch.object(
-            cli, "publish_gslc_plan", return_value=plan_path
-        ) as publish, mock.patch.object(
             cli, "run_nisar_gslc_stack", side_effect=AssertionError("execution started")
         ), redirect_stdout(output):
             code = cli.main(
-                ["--config", str(self.config), "--case", "la", "--plan-only"]
+                ["--config", str(self.config), "--case", "la", "--dry-run"]
             )
 
         self.assertEqual(code, 0)
         select.assert_called_once_with((self.case,), "la")
-        publish.assert_called_once_with(self.plan)
-        self.assertIn("plan complete", output.getvalue())
+        self.assertIn("dry-run complete", output.getvalue())
 
     def test_default_action_executes_and_supports_workflow_progress(self) -> None:
         direct = io.StringIO()

@@ -33,8 +33,8 @@ RSLC/GSLC 裁剪及预处理质量检查。基线选择、干涉图、相干性�
 ```text
 Geodesy-Preprocessing/
 ├── config_examples/                 # 按项目阶段分类的 CFG 模板
-│   ├── 1-1acquisition/              # SAR/DEM 查询和下载
-│   └── 1-2preprocessing/            # SLC、参考几何、配准与裁剪
+│   ├── download/                    # SAR/DEM 查询和下载
+│   └── preprocess/                  # SLC、参考几何、配准与裁剪
 ├── docs/
 │   ├── architecture.md              # 仓库边界与源码架构
 │   ├── workflows/                   # 总路线及各产品完整流程
@@ -180,8 +180,8 @@ CFG 属于具体研究区，应复制到项目目录后修改，不直接修改�
 
 ```bash
 PROJECT=/path/to/research_project
-mkdir -p "$PROJECT/config/0acquisition" "$PROJECT/config/1preprocessing" "$PROJECT/TOPOGRAPHY" "$PROJECT/S1/QUERY" "$PROJECT/S1/DOWNLOAD"
-cp config_examples/1-1acquisition/opentopo_dem_download.cfg "$PROJECT/config/0acquisition/"
+mkdir -p "$PROJECT/config/download" "$PROJECT/config/preprocess" "$PROJECT/TOPOGRAPHY" "$PROJECT/S1/QUERY" "$PROJECT/S1/DOWNLOAD"
+cp config_examples/download/opentopo_dem_download.cfg "$PROJECT/config/download/"
 ```
 
 再复制所选路线需要的 CFG。模板顶部给出正式命令和示例，参数块标明哪些内容必填、
@@ -196,14 +196,14 @@ OpenTopography 模板默认在下载后执行 GAMMA `srtm2dem`；只需要公共
 
 ```bash
 # DEM：先检查范围，再下载并按 CFG 决定是否转换为 GAMMA DEM
-geodesy-pre-dem --config "$PROJECT/config/0acquisition/opentopo_dem_download.cfg" --dry-run
-geodesy-pre-dem --config "$PROJECT/config/0acquisition/opentopo_dem_download.cfg"
+geodesy-pre-dem --config "$PROJECT/config/download/opentopo_dem_download.cfg" --dry-run
+geodesy-pre-dem --config "$PROJECT/config/download/opentopo_dem_download.cfg"
 
 # Sentinel-1：先查询和人工检查覆盖，再下载
 geodesy-pre-sar-sentinel1-acquire \
-  --config "$PROJECT/config/0acquisition/sentinel1_download.cfg" --case main --query
+  --config "$PROJECT/config/download/sentinel1_download.cfg" --case main --query
 geodesy-pre-sar-sentinel1-acquire \
-  --config "$PROJECT/config/0acquisition/sentinel1_download.cfg" --case main --download
+  --config "$PROJECT/config/download/sentinel1_download.cfg" --case main --download
 ```
 
 完整 SLC 不需要 BURST 合并；BURST 下载后增加 `--merge`。SLC 生成、参考几何、配准和
@@ -216,8 +216,8 @@ geodesy-pre-sar-sentinel1-acquire \
 ```text
 RESEARCH_PROJECT/
 ├── config/
-│   ├── 0acquisition/                   # SAR/DEM 查询和下载 CFG
-│   └── 1preprocessing/                 # SLC、配准和裁剪 CFG
+│   ├── download/                       # SAR/DEM 查询和下载 CFG
+│   └── preprocess/                     # SLC、配准和裁剪 CFG
 ├── TOPOGRAPHY/
 │   ├── catalog.json
 │   └── <dataset_id>/{SOURCE,GAMMA}/    # 可被多个轨道复用的 DEM 数据集

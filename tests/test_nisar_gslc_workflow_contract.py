@@ -26,24 +26,24 @@ class NisarGslcWorkflowContractTests(unittest.TestCase):
         self.assertIn("geodesy-pre-sar-nisar-acquire", scripts)
         self.assertIn("geodesy-pre-sar-nisar-gslc", scripts)
         for template in (
-            "acquisition/nisar_rslc_download.cfg",
-            "acquisition/nisar_gslc_download.cfg",
-            "preprocessing/nisar_gslc_stack.cfg",
+            "download/nisar_rslc_download.cfg",
+            "download/nisar_gslc_download.cfg",
+            "preprocess/nisar_gslc_stack.cfg",
         ):
             self.assertTrue((ROOT / "config_examples" / template).is_file(), template)
         self.assertFalse((ROOT / "config_examples/nisar_download.cfg").exists())
         for current_guide in (
             ROOT / "README.md",
-            ROOT / "config_examples/acquisition/nisar_rslc_download.cfg",
+            ROOT / "config_examples/download/nisar_rslc_download.cfg",
             ROOT / "docs/workflows/nisar_rslc.md",
         ):
             self.assertNotIn("nisar_download.cfg", current_guide.read_text(encoding="utf-8"))
 
     def test_download_templates_feed_their_next_stage_without_path_guessing(self) -> None:
-        rslc = _config("acquisition/nisar_rslc_download.cfg")
-        gslc = _config("acquisition/nisar_gslc_download.cfg")
-        gamma_slc = _config("preprocessing/gamma_slc_grid.cfg")
-        gslc_stack = _config("preprocessing/nisar_gslc_stack.cfg")
+        rslc = _config("download/nisar_rslc_download.cfg")
+        gslc = _config("download/nisar_gslc_download.cfg")
+        gamma_slc = _config("preprocess/gamma_slc_grid.cfg")
+        gslc_stack = _config("preprocess/nisar_gslc_stack.cfg")
 
         self.assertEqual(rslc["defaults"]["download_dir"], gamma_slc["case:nisar_la"]["raw_dir"])
         self.assertEqual(
@@ -73,7 +73,7 @@ class NisarGslcWorkflowContractTests(unittest.TestCase):
         for marker in (
             "geodesy-pre-sar-nisar-acquire",
             "geodesy-pre-sar-nisar-gslc",
-            "--plan-only",
+            "--dry-run",
             "registered_stack.json",
             "Geodesy-Analysis",
             "GUNW",

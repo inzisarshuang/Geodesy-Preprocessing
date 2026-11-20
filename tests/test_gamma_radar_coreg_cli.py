@@ -13,6 +13,7 @@ from unittest.mock import patch
 
 from geodesy_preprocessing.sar.rslc_registration.gamma.radar_grid import coreg_cli
 from geodesy_preprocessing.sar.rslc_registration.common import RegistrationResult
+from geodesy_preprocessing.common.progress import emit_progress
 
 
 PARAMETERS = """range_samples: 100
@@ -112,14 +113,44 @@ output_dir = RSLC
         with redirect_stderr(io.StringIO()):
             self.assertEqual(coreg_cli.main(["--config", str(self.config)]), 2)
 
+    def test_formal_run_prints_human_progress_instead_of_protocol_json(self) -> None:
+        def simulated_run(plan, *, progress_sink):
+            progress_sink(
+                emit_progress(
+                    event="item_finished",
+                    task="PRE_GAMMA_SAR_RADAR_COREG",
+                    item="20240312/HH",
+                    index=2,
+                    total=2,
+                    stage="quality",
+                    status="complete",
+                )
+            )
+            return RegistrationResult(
+                self.output / "registered_stack.json",
+                "20240229",
+                ("20240229", "20240312"),
+                self.output / "quality.json",
+                self.output,
+            )
+
+        terminal = io.StringIO()
+        with patch.object(coreg_cli, "run_gamma_radar_coreg", side_effect=simulated_run):
+            with redirect_stdout(terminal):
+                self.assertEqual(coreg_cli.main(["--config", str(self.config)]), 0)
+        self.assertNotIn("@@GEODESY_PROGRESS", terminal.getvalue())
+        self.assertIn("[2/2 100.0%]", terminal.getvalue())
+        self.assertIn("20240312/HH", terminal.getvalue())
+
     def test_entry_point_and_namespace_are_backend_qualified(self) -> None:
         root = Path(__file__).resolve().parents[1]
         with (root / "pyproject.toml").open("rb") as stream:
             scripts = tomllib.load(stream)["project"]["scripts"]
         self.assertEqual(
-            scripts["geodesy-pre-gamma-sar-coreg"],
+            scripts["geodesy-pre-gamma-coreg-grid"],
             "geodesy_preprocessing.sar.rslc_registration.gamma.radar_grid.coreg_cli:main",
         )
+        self.assertNotIn("geodesy-pre-gamma-sar-coreg", scripts)
         from geodesy_preprocessing.sar.rslc_registration.gamma import radar_grid
 
         self.assertTrue(callable(radar_grid.build_gamma_radar_coreg_plan))

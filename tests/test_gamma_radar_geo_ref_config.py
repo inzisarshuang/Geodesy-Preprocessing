@@ -21,7 +21,7 @@ class GammaRadarGeoRefConfigTests(unittest.TestCase):
         self.root = Path(self.temporary.name)
         self.project = self.root / "study"
         self.project.mkdir()
-        self.config = self.root / "gamma_sar_geo_ref.cfg"
+        self.config = self.root / "gamma_geo_ref_grid.cfg"
 
     def tearDown(self) -> None:
         self.temporary.cleanup()

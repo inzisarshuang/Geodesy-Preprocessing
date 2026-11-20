@@ -122,6 +122,23 @@ def _positive_integer(properties: Mapping[str, object], identity: str, *names: s
     return result
 
 
+def _nonnegative_integer(
+    properties: Mapping[str, object], identity: str, *names: str
+) -> int:
+    value = _required(properties, identity, *names)
+    try:
+        result = int(value)
+    except (TypeError, ValueError) as error:
+        raise ValueError(
+            f"Sentinel-1 product {identity} property {names[0]} must be an integer"
+        ) from error
+    if result < 0:
+        raise ValueError(
+            f"Sentinel-1 product {identity} property {names[0]} must be non-negative"
+        )
+    return result
+
+
 def _time(properties: Mapping[str, object], identity: str, *names: str) -> str:
     value = _required(properties, identity, *names)
     try:
@@ -199,6 +216,8 @@ def _normalize(
     def burst_integer(name: str) -> int | None:
         if product_type is not Sentinel1ProductType.BURST:
             return None
+        if name == "burstIndex":
+            return _nonnegative_integer(burst, identity, name)
         return _positive_integer(burst, identity, name)
 
     def burst_text(*names: str) -> str | None:

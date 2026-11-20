@@ -4,12 +4,14 @@
     为各预处理模块生成确定性且不含凭据的 ``@@GEODESY_PROGRESS`` JSON 行。
 
 函数说明:
-    ``emit_progress`` 校验公共字段和附加信息并返回一条紧凑协议文本。
+    ``emit_progress`` 校验公共字段和附加信息并返回一条紧凑协议文本；
+    ``ConsoleProgress`` 把该协议转换为供人阅读的统一终端进度。
 """
 
 from __future__ import annotations
 
 import json
+from collections.abc import Callable
 from datetime import datetime, timezone
 
 PROGRESS_PREFIX = "@@GEODESY_PROGRESS "
@@ -64,4 +66,33 @@ def emit_progress(
     )
 
 
-__all__ = ["PROGRESS_PREFIX", "emit_progress"]
+class ConsoleProgress:
+    """Render protocol events as concise, consistent human-readable lines."""
+
+    def __init__(self, *, writer: Callable[[str], object] = print) -> None:
+        self._writer = writer
+
+    def __call__(self, line: str) -> None:
+        if not line.startswith(PROGRESS_PREFIX):
+            self._writer(line)
+            return
+        payload = json.loads(line.removeprefix(PROGRESS_PREFIX))
+        task = payload.get("task", "GEODESY")
+        item = payload.get("item", "-")
+        stage = payload.get("stage", payload.get("event", "-"))
+        status = payload.get("status", "-")
+        index = payload.get("index")
+        total = payload.get("total")
+        if isinstance(index, int) and isinstance(total, int) and total > 0:
+            position = f"[{index}/{total} {index / total * 100:.1f}%]"
+        else:
+            position = "[-/-]"
+        self._writer(
+            f"[{task}] {position} item={item} stage={stage} status={status}"
+        )
+        failure_logs = payload.get("failure_logs")
+        if failure_logs:
+            self._writer(f"详细日志: {failure_logs}")
+
+
+__all__ = ["ConsoleProgress", "PROGRESS_PREFIX", "emit_progress"]

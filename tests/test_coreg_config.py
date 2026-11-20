@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import importlib
 import io
+import json
 import os
 import tempfile
 import unittest
@@ -51,9 +52,9 @@ class CoregConfigTests(unittest.TestCase):
             (output / "RSLC" / f"{date}.rslc").write_bytes(b"rslc")
             (output / "RSLC" / f"{date}.rslc.par").write_bytes(b"par")
         (output / "coreg_quality" / "1ID.coreg_quality").write_bytes(b"quality")
-        config_dir = project / "config" / "preprocessing"
+        config_dir = project / "config" / "preprocess"
         config_dir.mkdir(parents=True)
-        config = config_dir / "gamma_sar_tops_coreg.cfg"
+        config = config_dir / "gamma_coreg_tops.cfg"
         config.write_text(
             "[project]\n"
             "root = ../..\n\n"
@@ -109,6 +110,39 @@ class CoregConfigTests(unittest.TestCase):
                 "GEODESY_PROGRESS_PROTOCOL": "1",
                 "GEODESY_TASK": "PRE_S1_COREG",
             }
+            config_module = self._module("coreg_config")
+            plan_module = self._module("coreg_plan")
+            runner_module = self._module("coreg_runner")
+            case = config_module.load_coreg_config(config)[0]
+            plan = plan_module.build_coreg_plan(
+                case.slc_dir,
+                case.dem_geocode_dir,
+                case.output_dir,
+                case.reference,
+                case.images_file,
+                case.range_looks,
+                case.azimuth_looks,
+                coherence_threshold=case.coherence_threshold,
+                fraction_threshold=case.fraction_threshold,
+                phase_stdev_threshold=case.phase_stdev_threshold,
+                id_mode=case.id_mode,
+                npoly=case.npoly,
+                bridge_mode=case.bridge_mode,
+            )
+            required = [
+                path.relative_to(plan.output_dir).as_posix()
+                for path in plan.expected_outputs
+            ]
+            (plan.output_dir / "completion.json").write_text(
+                json.dumps(
+                    {
+                        "status": "complete",
+                        "input_signature": runner_module._input_signature(plan),
+                        "required_products": required,
+                    }
+                ),
+                encoding="utf-8",
+            )
 
             with patch.dict(os.environ, environment), redirect_stdout(terminal):
                 exit_code = module.main(["--config", str(config), "--case", "2024_154"])

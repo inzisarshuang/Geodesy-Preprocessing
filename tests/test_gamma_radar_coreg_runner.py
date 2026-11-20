@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import sys
 import tempfile
 import unittest
 from dataclasses import replace
@@ -19,6 +20,7 @@ from geodesy_preprocessing.sar.rslc_registration.gamma.radar_grid.coreg_plan imp
 )
 from geodesy_preprocessing.sar.rslc_registration.gamma.radar_grid.coreg_runner import (
     GammaRadarCoregCommandError,
+    _run,
     run_gamma_radar_coreg,
 )
 
@@ -84,6 +86,7 @@ class GammaRadarCoregRunnerTests(unittest.TestCase):
         *,
         selected_polarizations: tuple[str, ...] = ("HH",),
         refinement: str = "standard",
+        quality_policy: str = "strict",
     ) -> GammaRadarCoregCase:
         return GammaRadarCoregCase(
             "main",
@@ -104,6 +107,7 @@ class GammaRadarCoregRunnerTests(unittest.TestCase):
             track="87",
             frame="22",
             orbit_direction="DESCENDING",
+            quality_policy=quality_policy,  # type: ignore[arg-type]
         )
 
     def _write_command(self, name: str, body: str) -> None:
@@ -203,6 +207,24 @@ pathlib.Path(sys.argv[sys.argv.index('--quality') + 1]).write_text({refined_qual
             self.assertFalse(Path(str(path) + ".off").exists())
         self.assertTrue(events)
 
+    def test_gamma_python_scripts_use_the_active_environment_interpreter(self) -> None:
+        self._write_command(
+            "python_probe",
+            "import sys\nprint(sys.executable)\n",
+        )
+        logs = self.root / "probe-logs"
+        _run(
+            "probe",
+            ("python_probe",),
+            cwd=self.root,
+            environment={"PATH": f"{self.bin}{os.pathsep}/usr/bin"},
+            log_dir=logs,
+        )
+        self.assertEqual(
+            Path((logs / "probe.stdout.log").read_text().strip()).resolve(),
+            Path(sys.executable).resolve(),
+        )
+
     def test_command_failure_and_unparseable_quality_block_publication(self) -> None:
         self._commands(exit_code=7)
         with self.assertRaises(GammaRadarCoregCommandError) as raised:
@@ -231,6 +253,40 @@ pathlib.Path(sys.argv[sys.argv.index('--quality') + 1]).write_text({refined_qual
         )
         quality = json.loads((self.output / "quality.json").read_text())
         self.assertEqual(quality["scenes"]["20240312/HH"]["status"], "warning")
+
+    def test_diagnostic_policy_publishes_failed_primary_and_reused_polarization(self) -> None:
+        self._add_hv()
+        self._commands(quality=QUALITY.replace("range: 0.02", "range: 0.40"))
+        result = run_gamma_radar_coreg(
+            build_gamma_radar_coreg_plan(
+                self._case(
+                    selected_polarizations=("HH", "HV"),
+                    quality_policy="diagnostic",
+                )
+            ),
+            environment=self._environment(),
+        )
+
+        self.assertEqual(result.native_root, self.output)
+        self.assertTrue((self.output / "registered_stack.json").is_file())
+        quality = json.loads((self.output / "quality.json").read_text())
+        self.assertEqual(quality["publication_policy"], "diagnostic")
+        self.assertEqual(quality["stack_quality_status"], "failed")
+        self.assertEqual(quality["scenes"]["20240312/HH"]["status"], "failed")
+        self.assertEqual(quality["scenes"]["20240312/HV"]["status"], "failed")
+        provenance = json.loads((self.output / "provenance.json").read_text())
+        self.assertEqual(provenance["quality_policy"], "diagnostic")
+        commands = [json.loads(line) for line in self.trace.read_text().splitlines()]
+        self.assertEqual(
+            [Path(command[0]).name for command in commands],
+            [
+                "multi_look",
+                "multi_look",
+                "SLC_coreg.py",
+                "SLC_interp_lt",
+                "multi_look",
+            ],
+        )
 
     def test_partial_destination_is_rejected_before_command_and_complete_skips(self) -> None:
         self.output.mkdir()

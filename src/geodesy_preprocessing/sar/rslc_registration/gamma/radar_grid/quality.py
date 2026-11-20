@@ -35,6 +35,7 @@ _RANGE = re.compile(
 _AZIMUTH = re.compile(
     r"^final azimuth offset poly\. coeff\.:\s+([-+0-9.eE]+)", re.MULTILINE
 )
+_FINAL_SECTION_MARKER = "co-registration quality test result:"
 
 
 @dataclass(frozen=True)
@@ -68,7 +69,13 @@ def _number(value: str, label: str) -> float:
 
 
 def parse_coreg_quality(path: str | Path) -> GammaCoregQuality:
-    """Parse the unique final metrics from one completed quality file."""
+    """Parse the unique final metrics from one completed quality file.
+
+    ``SLC_coreg.py`` reports intermediate MLI/SLC fits before its authoritative
+    final quality section.  When that section marker is present, only the text
+    after its last occurrence is interpreted.  The shorter
+    ``MLI_coreg_refine.py`` report has no marker and is parsed as one block.
+    """
 
     source = Path(path)
     text = source.read_text(encoding="utf-8")
@@ -77,10 +84,13 @@ def parse_coreg_quality(path: str | Path) -> GammaCoregQuality:
         for marker in ("end of SLC_coreg.py", "end of MLI_coreg_refine.py")
     ):
         raise ValueError(f"quality file is incomplete: {source}")
-    accepted_raw, total_raw = _one(_SOLUTION, text, "solution")
-    range_std_raw, azimuth_std_raw = _one(_STDDEV, text, "fit standard deviation")
-    range_residual_raw = _one(_RANGE, text, "range residual")[0]
-    azimuth_residual_raw = _one(_AZIMUTH, text, "azimuth residual")[0]
+    final_text = text.rsplit(_FINAL_SECTION_MARKER, 1)[-1]
+    accepted_raw, total_raw = _one(_SOLUTION, final_text, "solution")
+    range_std_raw, azimuth_std_raw = _one(
+        _STDDEV, final_text, "fit standard deviation"
+    )
+    range_residual_raw = _one(_RANGE, final_text, "range residual")[0]
+    azimuth_residual_raw = _one(_AZIMUTH, final_text, "azimuth residual")[0]
     accepted = int(accepted_raw)
     total = int(total_raw)
     if accepted < 1 or total < 1 or accepted > total:

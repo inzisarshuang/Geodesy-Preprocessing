@@ -73,16 +73,12 @@ class ArchitectureTests(unittest.TestCase):
         self.assertTrue(canonical.issubset(metadata["project"]["scripts"]))
         data_files = metadata["tool"]["setuptools"]["data-files"]
         self.assertEqual(
-            data_files["share/geodesy-preprocessing/config_examples/acquisition"],
-            ["config_examples/acquisition/*.cfg"],
+            data_files["share/geodesy-preprocessing/config_examples/download"],
+            ["config_examples/download/*.cfg"],
         )
         self.assertEqual(
-            data_files["share/geodesy-preprocessing/config_examples/topography"],
-            ["config_examples/topography/*.cfg"],
-        )
-        self.assertEqual(
-            data_files["share/geodesy-preprocessing/config_examples/preprocessing"],
-            ["config_examples/preprocessing/*.cfg"],
+            data_files["share/geodesy-preprocessing/config_examples/preprocess"],
+            ["config_examples/preprocess/*.cfg"],
         )
 
     def test_documentation_places_analysis_after_registered_stack_publication(self) -> None:

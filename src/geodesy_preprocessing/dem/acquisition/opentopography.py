@@ -264,7 +264,7 @@ def download_dem(
     output_path.parent.mkdir(parents=True, exist_ok=True)
     if output_path.exists() and not overwrite:
         raise FileExistsError(
-            f"output already exists: {output_path}; set overwrite=true or use --force"
+            f"output already exists and will be replaced: {output_path}"
         )
 
     descriptor, temporary_name = tempfile.mkstemp(

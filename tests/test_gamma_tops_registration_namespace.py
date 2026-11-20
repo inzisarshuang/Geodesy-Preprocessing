@@ -104,7 +104,7 @@ class GammaTopsRegistrationNamespaceTests(unittest.TestCase):
         for name in templates:
             with self.subTest(template=name):
                 contents = (
-                    root / "config_examples/preprocessing" / name
+                    root / "config_examples/preprocess" / name
                 ).read_text(encoding="utf-8")
                 for marker in markers:
                     self.assertIn(marker, contents)

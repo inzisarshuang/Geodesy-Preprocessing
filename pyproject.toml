@@ -39,6 +39,5 @@ geodesy-pre-sar-sentinel1-acquire = "geodesy_preprocessing.sar.acquisition.senti
 where = ["src"]
 
 [tool.setuptools.data-files]
-"share/geodesy-preprocessing/config_examples/acquisition" = ["config_examples/acquisition/*.cfg"]
-"share/geodesy-preprocessing/config_examples/topography" = ["config_examples/topography/*.cfg"]
-"share/geodesy-preprocessing/config_examples/preprocessing" = ["config_examples/preprocessing/*.cfg"]
+"share/geodesy-preprocessing/config_examples/download" = ["config_examples/download/*.cfg"]
+"share/geodesy-preprocessing/config_examples/preprocess" = ["config_examples/preprocess/*.cfg"]

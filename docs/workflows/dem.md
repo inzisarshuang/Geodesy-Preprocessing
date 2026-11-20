@@ -6,8 +6,8 @@
 
 ## 准备配置
 
-通常只需将 `config_examples/topography/opentopo_dem_download.cfg` 复制到项目的
-`config/topography/`。在同一 CFG 中设置项目根目录、唯一
+通常只需将 `config_examples/download/opentopo_dem_download.cfg` 复制到项目的
+`config/download/`。在同一 CFG 中设置项目根目录、唯一
 `topography_dataset_id`、KML 或 bbox 和缓冲距离。输出位置由数据集 ID 确定，API key
 放在运行终端的 `OPENTOPO_API_KEY`，不要放进 CFG。
 
@@ -15,8 +15,8 @@
 
 ```bash
 conda activate envInSAR
-geodesy-pre-dem --config PROJECT/config/topography/opentopo_dem_download.cfg --dry-run
-geodesy-pre-dem --config PROJECT/config/topography/opentopo_dem_download.cfg
+geodesy-pre-dem --config PROJECT/config/download/opentopo_dem_download.cfg --dry-run
+geodesy-pre-dem --config PROJECT/config/download/opentopo_dem_download.cfg
 ```
 
 模板默认 `run_srtm2dem=true`，因此完成时会得到：

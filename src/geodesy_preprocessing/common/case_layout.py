@@ -27,11 +27,13 @@ _PRODUCTS = {
     "RSLC_SUBSET": ("RSLC", "SUBSET"),
 }
 _CONFIG_STAGES = {
-    "acquisition": "0acquisition",
-    "preprocessing": "1preprocessing",
-    "analysis": "2analysis",
-    "adapter": "3adapter",
-    "visualization": "4visualization",
+    "download": "download",
+    "acquisition": "download",
+    "preprocess": "preprocess",
+    "preprocessing": "preprocess",
+    "analysis": "analysis",
+    "adapter": "adapter",
+    "visualization": "visualization",
 }
 
 

@@ -71,4 +71,22 @@ class GammaSlcGrid:
                 raise ValueError(f"{field} must be a positive finite number")
 
 
+def _gamma_slc_paths(
+    slc_dir: Path,
+    date: str,
+    polarization: str,
+) -> tuple[Path, Path]:
+    """Locate the flat adapter output or the legacy per-date SLC layout."""
+
+    polarization_dir = slc_dir / f"{polarization}_SLC"
+    flat = (
+        polarization_dir / f"{date}.slc",
+        polarization_dir / f"{date}.slc.par",
+    )
+    if any(path.exists() or path.is_symlink() for path in flat):
+        return flat
+    scene_dir = polarization_dir / date
+    return scene_dir / f"{date}.slc", scene_dir / f"{date}.slc.par"
+
+
 __all__ = ["GammaSlcAsset", "GammaSlcGrid"]

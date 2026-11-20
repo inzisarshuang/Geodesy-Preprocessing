@@ -101,7 +101,7 @@ import_command = {sys.executable} {FIXTURE} cosmo
         )
         templates = (("gamma_slc_grid.cfg", "geodesy-pre-gamma-slc-grid", "PRE_GAMMA_SAR_SLC"),)
         for filename, command, task in templates:
-            path = REPOSITORY_ROOT / "config_examples/preprocessing" / filename
+            path = REPOSITORY_ROOT / "config_examples/preprocess" / filename
             text = path.read_text(encoding="utf-8")
             with self.subTest(filename=filename):
                 for marker in (

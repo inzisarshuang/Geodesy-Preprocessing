@@ -19,6 +19,9 @@ def record(stage: str, arguments: list[str]) -> None:
                     "argv": arguments,
                     "cwd": str(Path.cwd()),
                     "path": os.environ.get("PATH", ""),
+                    "ld_library_path": os.environ.get("LD_LIBRARY_PATH", ""),
+                    "proj_data": os.environ.get("PROJ_DATA", ""),
+                    "gdal_data": os.environ.get("GDAL_DATA", ""),
                 },
                 sort_keys=True,
             )

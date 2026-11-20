@@ -4,18 +4,21 @@
     从项目 CFG 生成可检查的裁剪计划，或执行完整 RSLC 批量裁剪和原子发布。
 
 函数说明:
-    ``main`` 解析 ``--config``、``--case``、``--plan-only`` 和 ``--force``。
+    ``main`` 解析 ``--config``、``--case`` 和统一的 ``--dry-run``。
 """
 
 from __future__ import annotations
 
 import argparse
 import json
+import os
 import shutil
 import sys
 import tempfile
 from pathlib import Path
 from collections.abc import Sequence
+
+from geodesy_preprocessing.common.case_layout import resolve_case_log_path
 
 from .config import load_crop_config
 from .gamma import GammaCommandError, GammaCommandRunner
@@ -52,40 +55,23 @@ class _PlanLoggingRunner:
 
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        prog="geodesy-pre-gamma-sar-rslc-crop",
+        prog="geodesy-pre-gamma-rslc-crop",
         description="按 KML 缓冲范围检查并裁剪完整 GAMMA 注册 RSLC 栈。",
     )
     parser.add_argument("--config", required=True, type=Path, help="项目裁剪 CFG")
     parser.add_argument("--case", required=True, help="CFG 中的 case 名称")
     parser.add_argument(
-        "--plan-only",
+        "--dry-run",
         action="store_true",
         help="只生成覆盖率、掩膜和窗口检查目录，不运行 SLC_copy",
-    )
-    parser.add_argument(
-        "--force",
-        action="store_true",
-        help="原子替换冲突目标；不会修改完整源 RSLC",
     )
     return parser
 
 
-def _existing_plan_matches(path: Path, signature: str) -> bool:
-    try:
-        payload = json.loads((path / "crop_window.json").read_text(encoding="utf-8"))
-    except (OSError, ValueError, json.JSONDecodeError):
-        return False
-    return payload.get("input_signature") == signature
-
-
-def _publish_plan(plan, *, force: bool) -> tuple[Path, bool]:
+def _publish_plan(plan) -> Path:
     output = Path(f"{plan.output_dir}.plan")
     output.parent.mkdir(parents=True, exist_ok=True)
     signature = crop_input_signature(plan)
-    if output.exists() and _existing_plan_matches(output, signature) and not force:
-        return output, True
-    if output.exists() and not force:
-        raise FileExistsError(f"检查目录来自不同输入，请改名或使用 --force：{output}")
     staging = Path(
         tempfile.mkdtemp(
             prefix=f".{output.name}.", suffix=".stage", dir=output.parent
@@ -93,7 +79,11 @@ def _publish_plan(plan, *, force: bool) -> tuple[Path, bool]:
     )
     try:
         log_dir = (
-            plan.config.project_root
+            resolve_case_log_path(
+                plan.config.case_root, "gamma_sar_rslc_crop_plan", plan.config.name
+            )
+            if plan.config.case_root is not None
+            else plan.config.project_root
             / "LOG/PRE/GAMMA/gamma_sar_rslc_crop_plan"
             / plan.config.name
         )
@@ -139,8 +129,20 @@ def _publish_plan(plan, *, force: bool) -> tuple[Path, bool]:
             json.dumps(payload, ensure_ascii=False, sort_keys=True, indent=2) + "\n",
             encoding="utf-8",
         )
-        atomic_publish_crop(staging, output, force=force)
-        return output, False
+        backup = output.parent / f".{output.name}.backup"
+        if backup.exists() or backup.is_symlink():
+            raise FileExistsError(f"dry-run backup path already exists: {backup}")
+        if output.exists() or output.is_symlink():
+            os.replace(output, backup)
+        try:
+            atomic_publish_crop(staging, output)
+        except BaseException:
+            if backup.exists() or backup.is_symlink():
+                os.replace(backup, output)
+            raise
+        if backup.exists():
+            shutil.rmtree(backup)
+        return output
     finally:
         if staging.exists():
             shutil.rmtree(staging, ignore_errors=True)
@@ -152,26 +154,17 @@ def main(arguments: Sequence[str] | None = None) -> int:
     options = _parser().parse_args(arguments)
     try:
         config = load_crop_config(options.config, options.case)
-        plan = build_crop_plan(
-            config,
-            allow_incomplete_output=options.force,
-        )
+        plan = build_crop_plan(config)
     except (FileNotFoundError, OSError, TypeError, ValueError) as error:
         print(f"ERROR: {error}", file=sys.stderr)
         return 2
     try:
-        if options.plan_only:
-            output, skipped = _publish_plan(plan, force=options.force)
-            if skipped:
-                print(f"裁剪检查已经完成，输入没有变化：{output}")
-            else:
-                print(f"裁剪检查完成，请查看掩膜和窗口：{output}")
+        if options.dry_run:
+            output = _publish_plan(plan)
+            print(f"裁剪检查完成，请查看掩膜和窗口：{output}")
             return 0
-        result = run_crop_stack(plan, force=options.force)
-        if result.skipped:
-            print(f"裁剪栈已经完成，输入没有变化：{result.output_dir}")
-        else:
-            print(f"裁剪栈完成：{result.completed}/{result.total}，结果：{result.output_dir}")
+        result = run_crop_stack(plan)
+        print(f"裁剪栈完成：{result.completed}/{result.total}，结果：{result.output_dir}")
         return 0
     except KeyboardInterrupt:
         print("ERROR: 用户中断裁剪", file=sys.stderr)

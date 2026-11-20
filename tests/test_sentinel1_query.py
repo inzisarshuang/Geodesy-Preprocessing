@@ -81,6 +81,27 @@ class Sentinel1QueryTests(unittest.TestCase):
         self.assertNotEqual(first, query_fingerprint(replace(self.case, tracks=None), digest))
         self.assertNotEqual(first, query_fingerprint(replace(self.case, product_type=Sentinel1ProductType.GRD), digest))
 
+    def test_publishes_review_artifacts_when_no_track_meets_coverage(self) -> None:
+        record = copy.deepcopy(self.record)
+        record["geometry"] = {
+            "type": "Polygon",
+            "coordinates": [[[-5, 38], [-3, 38], [-3, 42], [-5, 42], [-5, 38]]],
+        }
+        case = replace(self.case, tracks=None)
+
+        try:
+            result = publish_sentinel1_query(case, _Client([record]))
+        except ValueError as error:
+            self.fail(f"review-only query was rejected before publishing evidence: {error}")
+
+        self.assertEqual(len(result.all_products), 1)
+        self.assertEqual(result.selected_products, ())
+        self.assertIsNone(result.selection)
+        self.assertTrue((case.query_dir / "S1_SLC_all.csv").is_file())
+        self.assertTrue((case.query_dir / "S1_SLC_track_coverage.csv").is_file())
+        self.assertTrue((case.query_dir / "S1_SLC_coverage_all.png").is_file())
+        self.assertEqual(result.manifest.selected_product_ids, ())
+
     def test_modified_selected_csv_or_kml_is_rejected(self) -> None:
         result = publish_sentinel1_query(self.case, _Client([copy.deepcopy(self.record)]))
         selected = self.case.query_dir / "S1_SLC_selected.csv"

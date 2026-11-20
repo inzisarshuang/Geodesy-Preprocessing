@@ -75,7 +75,7 @@ class DemCliTests(unittest.TestCase):
 
     def test_dataset_kml_is_resolved_from_project_root(self) -> None:
         project = self.root / "project"
-        config_path = project / "config/topography/jishishan_cop30.cfg"
+        config_path = project / "config/download/jishishan_cop30.cfg"
         config_path.parent.mkdir(parents=True)
         cfg = {
             "project_root": "../..",

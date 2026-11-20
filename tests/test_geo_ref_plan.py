@@ -61,7 +61,7 @@ class GeoRefPlanTests(unittest.TestCase):
             with self.assertRaises(Exception):
                 plan.reference = "20240906"
 
-    def test_existing_destination_is_deferred_to_runner_validation(self) -> None:
+    def test_complete_destination_is_skipped_but_partial_output_is_not(self) -> None:
         module = self._module()
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -80,7 +80,7 @@ class GeoRefPlanTests(unittest.TestCase):
 
             plan = module.build_geo_ref_plan("20240905", dem, slc, output, 7, 2)
 
-            self.assertFalse(plan.skip)
+            self.assertTrue(plan.skip)
             (output / required[-1]).unlink()
             incomplete = module.build_geo_ref_plan(
                 "20240905", dem, slc, output, 7, 2

@@ -156,7 +156,7 @@ def build_gamma_tops_geo_ref_plan(
         reference_flag=reference_flag,
         incidence_flag=incidence_flag,
         expected_outputs=expected,
-        skip=False,
+        skip=complete,
     )
 
 

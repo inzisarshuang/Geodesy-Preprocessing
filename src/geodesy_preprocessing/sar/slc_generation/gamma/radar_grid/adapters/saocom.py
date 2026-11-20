@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import re
 import shlex
+import xml.etree.ElementTree as ET
 from pathlib import Path
 
 from ..config import OtherSarSlcCase, validate_safe_date, validate_within_root
@@ -21,6 +22,22 @@ from ..publication import classify_output_group
 from .base import PreparedProduct
 
 _DATE = re.compile(r"(?<!\d)(\d{8})(?!\d)")
+_SENSE_DATE = re.compile(r"^\s*(\d{4})-([A-Za-z]{3})-(\d{1,2})\s*$")
+_LINES_START = re.compile(r"^\s*(\d{1,2})-([A-Za-z]{3})-(\d{4})(?:\s|$)")
+_MONTH = {
+    "JAN": 1,
+    "FEB": 2,
+    "MAR": 3,
+    "APR": 4,
+    "MAY": 5,
+    "JUN": 6,
+    "JUL": 7,
+    "AUG": 8,
+    "SEP": 9,
+    "OCT": 10,
+    "NOV": 11,
+    "DEC": 12,
+}
 _SUPPORTED = {("HH",), ("HH", "HV")}
 _INCOMPLETE_MESSAGE = "SAOCOM mode is unsupported because the historical branch was incomplete"
 
@@ -36,7 +53,44 @@ def saocom_polarizations_for_mode(mode: str) -> tuple[str, ...]:
     raise ValueError(_INCOMPLETE_MESSAGE)
 
 
+def _metadata_date(xml: Path) -> str | None:
+    """Read the acquisition date stored in a SAOCOM product XML."""
+
+    candidates: set[str] = set()
+    root = ET.parse(xml).getroot()
+    for element in root.iter():
+        tag = element.tag.rsplit("}", 1)[-1]
+        value = (element.text or "").strip()
+        if tag == "SenseDate":
+            match = _SENSE_DATE.match(value)
+            if match:
+                year, month_name, day = match.groups()
+                month = _MONTH.get(month_name.upper())
+                if month is not None:
+                    candidates.add(f"{int(year):04d}{month:02d}{int(day):02d}")
+        elif tag == "LinesStart":
+            match = _LINES_START.match(value)
+            if match:
+                day, month_name, year = match.groups()
+                month = _MONTH.get(month_name.upper())
+                if month is not None:
+                    candidates.add(f"{int(year):04d}{month:02d}{int(day):02d}")
+    valid = {validate_safe_date(candidate) for candidate in candidates}
+    if len(valid) > 1:
+        raise ValueError(f"{xml}: inconsistent acquisition dates in metadata")
+    return next(iter(valid), None)
+
+
 def _scene_date(scene: Path, xml_files: tuple[Path, ...]) -> str:
+    metadata_dates = {
+        date for xml in xml_files if (date := _metadata_date(xml)) is not None
+    }
+    if len(metadata_dates) > 1:
+        raise ValueError(f"{scene}: inconsistent acquisition dates across product XML files")
+    if metadata_dates:
+        return next(iter(metadata_dates))
+
+    # Older fixtures and some repackaged products expose only an eight-digit date.
     candidates = set(_DATE.findall(scene.name))
     for xml in xml_files:
         candidates.update(_DATE.findall(xml.read_text(encoding="utf-8")))

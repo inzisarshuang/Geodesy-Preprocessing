@@ -24,8 +24,8 @@ from geodesy_preprocessing.sar.slc_generation.gamma.radar_grid.config import (
 )
 
 from .coreg_config import GammaRadarCoregCase
-from .models import GammaSlcAsset, GammaSlcGrid
-from .parameters import read_gamma_value, read_slc_grid
+from .models import GammaSlcAsset, GammaSlcGrid, _gamma_slc_paths
+from .parameters import read_slc_grid
 
 
 @dataclass(frozen=True)
@@ -117,10 +117,10 @@ def _geometry(case: GammaRadarCoregCase) -> Path:
 
 
 def _asset(case: GammaRadarCoregCase, date: str, polarization: str) -> GammaSlcAsset:
-    scene = case.slc_dir / f"{polarization}_SLC" / date
+    data_path, parameter_path = _gamma_slc_paths(case.slc_dir, date, polarization)
     try:
-        data = _file(scene / f"{date}.slc", "SLC")
-        parameter = _file(scene / f"{date}.slc.par", "SLC parameter")
+        data = _file(data_path, "SLC")
+        parameter = _file(parameter_path, "SLC parameter")
     except FileNotFoundError as error:
         raise FileNotFoundError(
             f"complete date/polarization grid is missing {date}/{polarization}"
@@ -129,7 +129,19 @@ def _asset(case: GammaRadarCoregCase, date: str, polarization: str) -> GammaSlcA
 
 
 def _frequency(asset: GammaSlcAsset) -> float:
-    raw = read_gamma_value(asset.parameter_path, "center_frequency").split()[0]
+    frequency_fields = {"center_frequency", "radar_frequency"}
+    values = [
+        tail.strip()
+        for line in asset.parameter_path.read_text(encoding="ascii").splitlines()
+        for head, separator, tail in (line.partition(":"),)
+        if separator and head.strip() in frequency_fields
+    ]
+    if len(values) != 1 or not values[0]:
+        raise ValueError(
+            "expected exactly one center_frequency or radar_frequency field "
+            f"in {asset.parameter_path}, found {len(values)}"
+        )
+    raw = values[0].split()[0]
     try:
         value = float(raw)
     except ValueError as error:

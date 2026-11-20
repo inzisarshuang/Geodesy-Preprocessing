@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import unittest
 
-from geodesy_preprocessing.common.progress import emit_progress
+from geodesy_preprocessing.common.progress import ConsoleProgress, emit_progress
 from geodesy_preprocessing.common.progress import emit_progress as emit_shared_progress
 
 
@@ -61,6 +61,27 @@ class ProgressProtocolTests(unittest.TestCase):
                 task="PRE_OTHER_SAR_SLC",
                 api_token="do-not-log",
             )
+
+    def test_console_renderer_hides_protocol_and_prints_failure_log(self) -> None:
+        lines: list[str] = []
+        renderer = ConsoleProgress(writer=lines.append)
+        renderer(
+            emit_progress(
+                event="item_finished",
+                task="PRE_GAMMA_SAR_RADAR_COREG",
+                item="20200724/HH",
+                index=2,
+                total=12,
+                stage="failed",
+                status="failed",
+                failure_logs="/project/RSLC.failed-logs-abcd1234",
+            )
+        )
+        self.assertEqual(len(lines), 2)
+        self.assertNotIn("@@GEODESY_PROGRESS", "\n".join(lines))
+        self.assertIn("[2/12 16.7%]", lines[0])
+        self.assertIn("20200724/HH", lines[0])
+        self.assertEqual(lines[1], "详细日志: /project/RSLC.failed-logs-abcd1234")
 
 
 if __name__ == "__main__":

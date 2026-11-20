@@ -156,7 +156,7 @@ class NisarGammaSlcAdapterTests(unittest.TestCase):
     def test_gamma_template_has_separate_la_and_optional_lb_cases(self) -> None:
         template = (
             Path(__file__).resolve().parents[1]
-            / "config_examples/preprocessing/gamma_slc_grid.cfg"
+            / "config_examples/preprocess/gamma_slc_grid.cfg"
         )
         contents = template.read_text(encoding="utf-8")
         for marker in (

@@ -1,4 +1,4 @@
-"""NISAR GSLC 原生复数栈的 plan-only 与正式执行命令。
+"""NISAR GSLC 原生复数栈的 dry-run 与正式执行命令。
 
 功能概述:
     从具名项目 CFG 构建只读计划；可只发布计划，也可事务生成完整地理网格复数栈。
@@ -21,7 +21,6 @@ from geodesy_preprocessing.common.progress import PROGRESS_PREFIX, emit_progress
 
 from .config import load_nisar_gslc_stack_config, select_nisar_gslc_stack_case
 from .plan import build_nisar_gslc_stack_plan
-from .publication import publish_gslc_plan
 from .runner import _redact, run_nisar_gslc_stack
 
 
@@ -36,9 +35,9 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--config", required=True, type=Path, help="project CFG path")
     parser.add_argument("--case", help="named [case:name] to execute")
     parser.add_argument(
-        "--plan-only",
+        "--dry-run",
         action="store_true",
-        help="validate inputs and publish a plan under LOG without extracting rasters",
+        help="validate inputs without extracting rasters",
     )
     return parser
 
@@ -84,21 +83,8 @@ def main(arguments: Sequence[str] | None = None) -> int:
 
     workflow = os.environ.get("GEODESY_PROGRESS_PROTOCOL") == "1"
     try:
-        if options.plan_only:
-            path = publish_gslc_plan(plan)
-            if workflow:
-                print(
-                    emit_progress(
-                        event="batch_finished",
-                        task=os.environ.get("GEODESY_TASK", _TASK),
-                        item=case.name,
-                        status="planned",
-                        total=len(plan.assets),
-                        stage="plan",
-                    )
-                )
-            else:
-                print(f"plan complete: {path}")
+        if options.dry_run:
+            print(f"dry-run complete: case={case.name}, assets={len(plan.assets)}")
             return 0
         summary = run_nisar_gslc_stack(
             plan,

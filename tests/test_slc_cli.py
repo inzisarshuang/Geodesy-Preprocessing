@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import io
+import json
 import os
 import tempfile
 import unittest
@@ -11,6 +12,8 @@ from pathlib import Path
 from unittest.mock import patch
 
 from geodesy_preprocessing.sar.slc_generation.gamma.tops.cli import main
+from geodesy_preprocessing.sar.slc_generation.gamma.tops.plan import build_slc_plan
+from geodesy_preprocessing.sar.slc_generation.gamma.tops.runner import _item_signature
 
 
 class TtyBuffer(io.StringIO):
@@ -36,6 +39,26 @@ class SlcCliTests(unittest.TestCase):
         burst.write_text("iw1_number_of_bursts: 1\n", encoding="ascii")
         source = raw / ("S1A_20240905.SAFE" if workflow else "S1A_20240905.zip")
         source.mkdir() if workflow else source.write_bytes(b"zip")
+        plan = build_slc_plan(
+            raw,
+            slc,
+            "-",
+            images,
+            burst,
+            4,
+            1,
+            workflow_flag=workflow,
+        )
+        (item_dir / "completion.json").write_text(
+            json.dumps(
+                {
+                    "status": "complete",
+                    "input_signature": _item_signature(plan, plan.items[0]),
+                    "required_products": ["20240905.vv.mli"],
+                }
+            ),
+            encoding="utf-8",
+        )
         return [str(raw), str(slc), "-", str(images), str(burst), "4", "1"]
 
     def test_seven_arguments_keep_zip_default_and_print_plain_progress(self) -> None:

@@ -33,7 +33,7 @@ class GammaCropPlanTests(unittest.TestCase):
         stack = project / "RAW/RSLC"
         data = stack / "RSLC"
         geometry = project / "RAW/GEOMETRY"
-        config_dir = project / "config/preprocessing"
+        config_dir = project / "config/preprocess"
         aoi_dir = project / "AOI"
         for directory in (data, geometry, config_dir, aoi_dir):
             directory.mkdir(parents=True)
@@ -106,7 +106,7 @@ polarization: VV
 </LinearRing></outerBoundaryIs></Polygon></Placemark></kml>""",
             encoding="utf-8",
         )
-        config = config_dir / "gamma_sar_rslc_crop.cfg"
+        config = config_dir / "gamma_rslc_crop.cfg"
         config.write_text(
             """[project]
 root = ../..
@@ -170,7 +170,7 @@ output_dir = RAW/RSLC_CROP
             with self.assertRaisesRegex(ValueError, "grid"):
                 build_crop_plan(config)
 
-    def test_rejects_output_inside_source_and_existing_conflict(self) -> None:
+    def test_rejects_output_inside_source_and_accepts_incomplete_existing_directory(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             config_path, _ = self._project(Path(directory))
             config = load_crop_config(config_path, "main")
@@ -180,10 +180,8 @@ output_dir = RAW/RSLC_CROP
 
             config.output_dir.mkdir()
             (config.output_dir / "unexpected.txt").write_text("conflict")
-            with self.assertRaisesRegex(FileExistsError, "incomplete|conflict"):
-                build_crop_plan(config)
-            forced_plan = build_crop_plan(config, allow_incomplete_output=True)
-            self.assertFalse(forced_plan.existing_complete)
+            existing_plan = build_crop_plan(config)
+            self.assertFalse(existing_plan.existing_complete)
 
 
 if __name__ == "__main__":

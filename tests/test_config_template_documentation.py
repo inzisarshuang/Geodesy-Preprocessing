@@ -70,7 +70,7 @@ class ConfigTemplateDocumentationTests(unittest.TestCase):
         self.assertEqual(problems, [], "\n".join(problems))
 
     def test_gamma_radar_geo_ref_template_documents_its_operational_identity(self) -> None:
-        contents = (ROOT / "config_examples/preprocessing/gamma_geo_ref_grid.cfg").read_text(
+        contents = (ROOT / "config_examples/preprocess/gamma_geo_ref_grid.cfg").read_text(
             encoding="utf-8"
         )
         for marker in (
@@ -113,7 +113,7 @@ class ConfigTemplateDocumentationTests(unittest.TestCase):
             "LOG/PRE/COMMON/NISAR_ACQUISITION",
         )
         for filename, markers in expectations.items():
-            contents = (ROOT / "config_examples/acquisition" / filename).read_text(
+            contents = (ROOT / "config_examples/download" / filename).read_text(
                 encoding="utf-8"
             )
             for marker in common + markers:
@@ -121,7 +121,7 @@ class ConfigTemplateDocumentationTests(unittest.TestCase):
                     self.assertIn(marker, contents)
 
     def test_nisar_gslc_stack_template_documents_native_la_lb_handoff(self) -> None:
-        contents = (ROOT / "config_examples/preprocessing/nisar_gslc_stack.cfg").read_text(
+        contents = (ROOT / "config_examples/preprocess/nisar_gslc_stack.cfg").read_text(
             encoding="utf-8"
         )
         for marker in (
@@ -142,7 +142,7 @@ class ConfigTemplateDocumentationTests(unittest.TestCase):
                 self.assertIn(marker, contents)
 
     def test_sentinel1_download_template_documents_acquisition_and_safe_handoff(self) -> None:
-        contents = (ROOT / "config_examples/acquisition/sentinel1_download.cfg").read_text(
+        contents = (ROOT / "config_examples/download/sentinel1_download.cfg").read_text(
             encoding="utf-8"
         )
         for marker in (

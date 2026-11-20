@@ -81,6 +81,7 @@ output_dir = RSLC/LA
         self.assertEqual(case.primary_polarization, "HH")
         self.assertEqual(case.sar_mode, 1)
         self.assertEqual(case.refinement, "standard")
+        self.assertEqual(case.quality_policy, "strict")
         self.assertEqual(case.slc_dir, project / "SLC")
         self.assertEqual(case.output_dir, project / "RSLC/LA")
         self.assertEqual(
@@ -120,6 +121,7 @@ output_dir = RSLC/LA
             "unknown = yes": "unknown key",
             "track = auto": "track.*positive integer",
             "orbit_direction = sideways": "orbit_direction",
+            "quality_policy = permissive": "quality_policy.*strict or diagnostic",
         }
         for replacement, message in invalid.items():
             with self.subTest(replacement=replacement):
@@ -131,6 +133,11 @@ output_dir = RSLC/LA
                 self.config.write_text("\n".join(lines) + "\n", encoding="utf-8")
                 with self.assertRaisesRegex(ValueError, message):
                     load_gamma_radar_coreg_config(self.config)
+
+    def test_diagnostic_quality_policy_is_explicitly_selected(self) -> None:
+        self._write(extra="quality_policy = diagnostic")
+        case = load_gamma_radar_coreg_config(self.config)[0]
+        self.assertEqual(case.quality_policy, "diagnostic")
 
     def test_paths_must_stay_in_project_and_case_selection_is_explicit(self) -> None:
         self._write()

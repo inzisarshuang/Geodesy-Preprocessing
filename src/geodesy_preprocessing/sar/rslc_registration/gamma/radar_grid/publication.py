@@ -13,7 +13,6 @@ from pathlib import Path
 
 from geodesy_preprocessing.sar.common.stack_manifest import read_stack_manifest
 
-
 def classify_stack_destination(path: str | Path) -> str:
     """Classify a stack destination and reject every non-manifest partial result."""
 

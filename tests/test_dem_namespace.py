@@ -33,7 +33,7 @@ class DemNamespaceTests(unittest.TestCase):
 
     def test_download_template_supports_the_complete_dem_workflow(self) -> None:
         acquisition_template = (
-            REPOSITORY_ROOT / "config_examples/topography/opentopo_dem_download.cfg"
+            REPOSITORY_ROOT / "config_examples/download/opentopo_dem_download.cfg"
         )
         text = acquisition_template.read_text(encoding="utf-8")
         for marker in (

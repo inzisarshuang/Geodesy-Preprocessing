@@ -126,6 +126,31 @@ class GammaRadarCoregPlanTests(unittest.TestCase):
         self.assertEqual(plan.center_frequency_hz, 1.2575e9)
         self.assertFalse(self.output.exists())
 
+    def test_accepts_flat_slc_layout_written_by_saocom_adapter(self) -> None:
+        for date in ("20240229", "20240312"):
+            for polarization in ("HH", "HV"):
+                nested = self.slc / f"{polarization}_SLC" / date
+                flat = nested.parent
+                (nested / f"{date}.slc").replace(flat / f"{date}.slc")
+                (nested / f"{date}.slc.par").replace(flat / f"{date}.slc.par")
+                nested.rmdir()
+
+        plan = build_gamma_radar_coreg_plan(self._case())
+
+        secondary = next(
+            scene
+            for scene in plan.scenes
+            if scene.asset.date == "20240312" and scene.asset.polarization == "HH"
+        )
+        self.assertEqual(
+            secondary.asset.data_path,
+            (self.slc / "HH_SLC/20240312.slc").resolve(),
+        )
+        self.assertEqual(
+            secondary.commands[0].argv[1],
+            str((self.slc / "HH_SLC/20240312.slc").resolve()),
+        )
+
     def test_missing_polarization_date_blocks_incomplete_grid(self) -> None:
         (self.slc / "HV_SLC/20240312/20240312.slc").unlink()
         with self.assertRaisesRegex(FileNotFoundError, "complete date/polarization grid"):
@@ -143,6 +168,19 @@ class GammaRadarCoregPlanTests(unittest.TestCase):
         parameter.write_text(PARAMETERS.replace("1.2575e9", "1.2e9"), encoding="ascii")
         with self.assertRaisesRegex(ValueError, "center frequency"):
             build_gamma_radar_coreg_plan(self._case())
+
+    def test_accepts_gamma_radar_frequency_field_used_by_saocom(self) -> None:
+        for parameter in self.slc.glob("*_SLC/*/*.slc.par"):
+            parameter.write_text(
+                parameter.read_text(encoding="ascii").replace(
+                    "center_frequency:", "radar_frequency:"
+                ),
+                encoding="ascii",
+            )
+
+        plan = build_gamma_radar_coreg_plan(self._case(sensor="saocom"))
+
+        self.assertEqual(plan.center_frequency_hz, 1.2575e9)
 
     def test_coreg_plan_sets_sensor_sar_mode(self) -> None:
         expected = {"lt1": 0, "nisar": 1, "alos2": 1, "saocom": 1, "rsat2": 1, "cosmo": 1}

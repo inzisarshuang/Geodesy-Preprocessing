@@ -99,9 +99,10 @@ output_dir = GEOMETRY
         with (root / "pyproject.toml").open("rb") as stream:
             scripts = tomllib.load(stream)["project"]["scripts"]
         self.assertEqual(
-            scripts["geodesy-pre-gamma-sar-geo-ref"],
+            scripts["geodesy-pre-gamma-geo-ref-grid"],
             "geodesy_preprocessing.sar.rslc_registration.gamma.radar_grid.geo_ref_cli:main",
         )
+        self.assertNotIn("geodesy-pre-gamma-sar-geo-ref", scripts)
 
 
 if __name__ == "__main__":

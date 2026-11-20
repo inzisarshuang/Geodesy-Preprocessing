@@ -5,6 +5,7 @@
     达标的最少轨道，并明确区分研究区命中 BURST 与合并所需补充 BURST。
 
 函数说明:
+    ``NoCoverageSelectionError`` 表示存在候选产品但覆盖率未达到要求；
     ``Sentinel1Selection`` 保存选择结果与逐日期覆盖率；
     ``select_sentinel1_products`` 执行确定性的本地选择。
 """
@@ -28,6 +29,10 @@ from geodesy_preprocessing.sar.common.coverage import (
 )
 
 from .models import Sentinel1AcquisitionCase, Sentinel1Product, Sentinel1ProductType
+
+
+class NoCoverageSelectionError(ValueError):
+    """Raised when products exist but none meet the requested coverage threshold."""
 
 
 @dataclass(frozen=True)
@@ -175,7 +180,9 @@ def select_sentinel1_products(
             tracks, coverage, selected = choice
             choices.append((direction, tracks, coverage, selected))
     if not choices:
-        raise ValueError("no Sentinel-1 direction/track choice meets the per-date coverage threshold")
+        raise NoCoverageSelectionError(
+            "no Sentinel-1 direction/track choice meets the per-date coverage threshold"
+        )
     direction, tracks, date_coverage, selected = min(
         choices,
         key=lambda item: (
@@ -210,4 +217,8 @@ def select_sentinel1_products(
     )
 
 
-__all__ = ["Sentinel1Selection", "select_sentinel1_products"]
+__all__ = [
+    "NoCoverageSelectionError",
+    "Sentinel1Selection",
+    "select_sentinel1_products",
+]

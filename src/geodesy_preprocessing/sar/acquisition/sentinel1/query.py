@@ -39,7 +39,11 @@ from .manifest import (
 from .models import Sentinel1AcquisitionCase, Sentinel1Product, Sentinel1ProductType
 from .plotting import save_coverage_figure
 from .search import Sentinel1SearchClient, search_sentinel1
-from .selection import Sentinel1Selection, select_sentinel1_products
+from .selection import (
+    NoCoverageSelectionError,
+    Sentinel1Selection,
+    select_sentinel1_products,
+)
 
 
 _PRODUCT_COLUMNS = (
@@ -182,8 +186,13 @@ def publish_sentinel1_query(
 
     all_products = search_sentinel1(case, client)
     aoi = _aoi(case)
-    selection = select_sentinel1_products(case, all_products, aoi)
-    selected = selection.products
+    try:
+        selection = select_sentinel1_products(case, all_products, aoi)
+    except NoCoverageSelectionError:
+        selection = None
+        selected = ()
+    else:
+        selected = selection.products
     destination = case.query_dir
     destination.parent.mkdir(parents=True, exist_ok=True)
     staging = Path(tempfile.mkdtemp(prefix=f".{destination.name}.", suffix=".stage", dir=destination.parent))
