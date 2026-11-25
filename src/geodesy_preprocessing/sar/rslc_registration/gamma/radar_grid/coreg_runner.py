@@ -24,7 +24,7 @@ from pathlib import Path
 
 from geodesy_preprocessing.common.progress import emit_progress
 from geodesy_preprocessing.common.figures import centralize_pre_figures
-from geodesy_preprocessing.common.reuse import ReuseState, classify_output
+from geodesy_preprocessing.common.publication import atomic_replace_directory
 from geodesy_preprocessing.sar.common.models import (
     BackendIdentity,
     GeometryType,
@@ -360,22 +360,6 @@ def _publish_metadata(
     )
 
 
-def _validate_complete_stack(output: Path, manifest: dict[str, object]) -> bool:
-    products = manifest.get("required_products")
-    if not isinstance(products, list) or not products:
-        return False
-    if not all(
-        isinstance(value, str)
-        and ".." not in Path(value).parts
-        and (output / value).is_file()
-        and (output / value).stat().st_size > 0
-        for value in products
-    ):
-        return False
-    read_stack_manifest(output / "registered_stack.json")
-    return True
-
-
 def run_gamma_radar_coreg(
     plan: GammaRadarCoregPlan,
     *,
@@ -390,18 +374,7 @@ def run_gamma_radar_coreg(
         run_environment.update((str(key), str(value)) for key, value in environment.items())
     gamma_version = run_environment.get("GAMMA_VERSION", "unknown")
     output = plan.case.output_dir
-    reuse = classify_output(
-        output, "completion.json", signature, _validate_complete_stack
-    )
-    if reuse.state is ReuseState.COMPLETE:
-        return _registration_result(output)
-    if reuse.state is ReuseState.MISMATCH:
-        raise FileExistsError(
-            f"RSLC destination contains results from different inputs: {output}. "
-            "Delete it after inspection or choose a different output directory"
-        )
-    if reuse.state is ReuseState.INCOMPLETE:
-        raise FileExistsError(f"incomplete RSLC destination: {reuse.guidance}")
+    output_existed = output.exists()
     output.parent.mkdir(parents=True, exist_ok=True)
     staging = Path(
         tempfile.mkdtemp(prefix=f".{output.name}-", suffix=".stage", dir=output.parent)
@@ -563,9 +536,9 @@ def run_gamma_radar_coreg(
         _publish_metadata(
             plan, staging, quality_records, commands, gamma_version, signature
         )
-        if output.exists() or output.is_symlink():
+        if not output_existed and (output.exists() or output.is_symlink()):
             raise FileExistsError(f"RSLC destination appeared during execution: {output}")
-        os.replace(staging, output)
+        atomic_replace_directory(staging, output)
         centralize_pre_figures(
             output,
             plan.case.figure_dir

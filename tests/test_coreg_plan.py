@@ -58,7 +58,6 @@ class CoregPlanTests(unittest.TestCase):
             self.assertEqual((plan.range_looks, plan.azimuth_looks), (7, 2))
             self.assertEqual(plan.bridge_mode, "none")
             self.assertEqual(plan.npoly, 4)
-            self.assertFalse(plan.skip)
             self.assertEqual(
                 tuple(path.name for path in plan.items[0].sources),
                 (
@@ -90,12 +89,12 @@ class CoregPlanTests(unittest.TestCase):
                 slc, dem_geo, output, "20240905", images, 7, 2
             )
 
-            self.assertFalse(plan.skip)
             (output / "RSLC" / "20240917.rslc").unlink()
             incomplete = module.build_coreg_plan(
                 slc, dem_geo, output, "20240905", images, 7, 2
             )
-            self.assertFalse(incomplete.skip)
+            self.assertEqual(plan.output_dir, output)
+            self.assertEqual(incomplete.output_dir, output)
 
     def test_rejects_missing_reference_bad_tab_and_invalid_settings(self) -> None:
         module = self._module()

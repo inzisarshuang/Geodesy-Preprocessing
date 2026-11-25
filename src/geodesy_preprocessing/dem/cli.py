@@ -213,19 +213,6 @@ def run_from_config(
             "split the AOI into smaller requests"
         )
     gamma_metadata = None
-    if run_gamma and not overwrite and not dry_run:
-        destinations = [gamma_dem_path, gamma_par_path]
-        if gamma_log_path is not None:
-            destinations.append(gamma_log_path)
-        existing = [path for path in destinations if path.exists()]
-        if existing:
-            if len(existing) != len(destinations):
-                raise RuntimeError(
-                    "incomplete GAMMA DEM output exists; inspect or use --force: "
-                    + ", ".join(str(path) for path in existing)
-                )
-            gamma_metadata = validate_gamma_dem(gamma_dem_path, gamma_par_path)
-            gamma_metadata["status"] = "skipped_complete"
     if dry_run:
         print("[DEM] dry-run 完成：没有读取 API 密钥，也没有发送网络请求。")
         return None
@@ -259,20 +246,17 @@ def run_from_config(
         print(f"[DEM] 下载完成: {output}")
 
     if run_gamma:
-        if gamma_metadata is None:
-            gamma_metadata = convert_with_srtm2dem(
-                input_geotiff=output,
-                output_dem=gamma_dem_path,
-                output_par=gamma_par_path,
-                command=gamma_command,
-                geoid_correction_flag=gamma_geoid_flag,
-                geoid_path=gamma_geoid_path,
-                gdal_bin_dir=gamma_gdal_bin,
-                log_path=gamma_log_path,
-                overwrite=overwrite,
-            )
-        else:
-            print("[DEM] GAMMA DEM 结果完整，跳过转换。")
+        gamma_metadata = convert_with_srtm2dem(
+            input_geotiff=output,
+            output_dem=gamma_dem_path,
+            output_par=gamma_par_path,
+            command=gamma_command,
+            geoid_correction_flag=gamma_geoid_flag,
+            geoid_path=gamma_geoid_path,
+            gdal_bin_dir=gamma_gdal_bin,
+            log_path=gamma_log_path,
+            overwrite=True,
+        )
         print(f"[DEM] GAMMA DEM: {gamma_dem_path}")
         print(f"[DEM] GAMMA 参数: {gamma_par_path}")
 

@@ -11,7 +11,8 @@ geodesy-pre-sar-nisar-acquire --config PROJECT/config/download/nisar_gslc_downlo
 ```
 
 人工检查覆盖图和筛选 CSV 后再下载。Earthdata 凭据只从 `~/.netrc` 或环境变量读取；
-CFG 不保存账号。完成时应有 `.h5` 和 `source_manifest.json`，且没有 `.part`。
+CFG 不保存账号。默认下载到 `NISAR/DOWNLOAD/GSLC/`，其中应有 `.h5` 和
+`source_manifest.json`，且没有 `.part`。查询结果位于 `NISAR/QUERY/GSLC/`。
 
 ## 检查网格和裁剪 LA
 
@@ -20,15 +21,16 @@ geodesy-pre-sar-nisar-gslc --config PROJECT/config/preprocess/nisar_gslc_stack.c
 geodesy-pre-sar-nisar-gslc --config PROJECT/config/preprocess/nisar_gslc_stack.cfg --case la
 ```
 
-`--plan-only` 必须确认 CRS、带符号像元间距、原点、形状、日期和极化一致。正式运行
+`--dry-run` 必须确认 CRS、带符号像元间距、原点、形状、日期和极化一致。正式运行
 不会重投影或重采样复数相位。输出包含 `registered_stack.json`、`crop_window.json`、
 `quality.json`、complex64 GeoTIFF、元数据和 quicklook。
 
 ## 可选 LB 和交接
 
 需要 Frequency B 时使用独立的 `--case lb`。LA 与 LB 可能具有不同尺寸和像元间距，
-不得强制共用裁剪窗口。最终 `registered_stack.json` 交给 `Geodesy-Analysis`；后续可从
+不得强制共用裁剪窗口。两套示例分别写入 `NISAR/LA/NATIVE/GSLC/` 和
+`NISAR/LB/NATIVE/GSLC/`。最终 `registered_stack.json` 交给 `Geodesy-Analysis`；后续可从
 GSLC 形成 GUNW 或进入其他干涉/时序方法，但不由本仓库执行。
 
-Workflow 日志位于 `PROJECT/LOG/PRE/NISAR/GSLC/`。相同输入安全跳过；来源或网格改变
-时停止，不覆盖旧正式结果。
+Workflow 日志位于 `PROJECT/LOG/PRE/NISAR/GSLC/`。每次正式调用都重新生成 GSLC 栈；
+新栈通过网格、产品和溯源验证后原子替换旧栈，失败时保留旧正式结果。

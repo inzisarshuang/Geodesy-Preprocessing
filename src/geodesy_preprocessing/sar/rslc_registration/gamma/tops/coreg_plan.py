@@ -55,7 +55,6 @@ class GammaTopsCoregPlan:
     bridge_mode: str
     items: tuple[CoregItemPlan, ...]
     expected_outputs: tuple[Path, ...]
-    skip: bool
 
 
 CoregPlan = GammaTopsCoregPlan
@@ -173,7 +172,6 @@ def build_gamma_tops_coreg_plan(
         bridge_mode=bridge_mode,
         items=items,
         expected_outputs=tuple(expected),
-        skip=False,
     )
 
 

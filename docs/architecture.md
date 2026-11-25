@@ -131,15 +131,15 @@ acquisition/nisar
 
 Git 记录代码演进；项目 LOG 记录某次数据处理。二者用途不同，不能相互替代。
 
-## 方法根目录、复用与快视图
+## 方法根目录、显式重跑与快视图
 
 项目 CFG 用 `project = SENSOR/CASE` 标识数据 case，用
 `processing_root = SENSOR/CASE/METHOD` 标识处理方法。预处理科学产品固定组织为
 `SLC`、`RSLC/GEOCODING`、`RSLC` 和可选 `RSLC/SUBSET`。各阶段可显式设置
 `output_dir`、`figure_dir`；省略时从 `processing_root` 推导。
 
-昂贵科学步骤仅在 `completion.json` 状态完整、输入签名一致且必需文件非空时跳过。
-已存在但残缺或输入变化的目录不会覆盖，用户应检查后删除或指定新目录。BMP/PNG/JPEG
+每次正式调用都执行科学处理；`completion.json` 和输入签名仅记录溯源，不作为跳过或冲突门禁。
+各步骤先在同文件系统 staging 目录中运行，新结果完整验证后原子替换旧目录，失败则保留旧结果。BMP/PNG/JPEG
 快视图不再混入科学目录，统一发布到 `FIGURES/PRE/<PRODUCT>`；缺图可仅执行预览修复，
 不需要重跑 SLC、配准或裁剪科学命令。
 

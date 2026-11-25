@@ -88,7 +88,6 @@ class GammaRadarGeoRefPlanTests(unittest.TestCase):
         self.assertEqual(plan.layover_shadow_map, self.output / "srtm.20240229.HH.ls_map")
         self.assertEqual(plan.geocoding_quality, self.output / "20240229.HH.geocoding_quality")
         self.assertEqual(plan.manifest, self.output / "reference_geometry.json")
-        self.assertFalse(plan.skip)
         self.assertFalse(self.output.exists())
 
     def test_accepts_flat_slc_layout_written_by_saocom_adapter(self) -> None:
@@ -124,20 +123,20 @@ class GammaRadarGeoRefPlanTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "DEM data and parameter names"):
             build_gamma_radar_geo_ref_plan(self._case(dem_par=other_par))
 
-    def test_complete_destination_skips(self) -> None:
+    def test_complete_destination_is_planned_for_rerun(self) -> None:
         initial = build_gamma_radar_geo_ref_plan(self._case())
         self.output.mkdir()
         for path in initial.expected_outputs:
             path.write_bytes(b"complete")
         rebuilt = build_gamma_radar_geo_ref_plan(self._case())
-        self.assertTrue(rebuilt.skip)
+        self.assertEqual(rebuilt.case.output_dir, self.output)
 
-    def test_partial_destination_is_rejected(self) -> None:
+    def test_partial_destination_is_planned_for_replacement(self) -> None:
         initial = build_gamma_radar_geo_ref_plan(self._case())
         self.output.mkdir()
         initial.reference_mli.write_bytes(b"partial")
-        with self.assertRaisesRegex(FileExistsError, "incomplete reference-geometry"):
-            build_gamma_radar_geo_ref_plan(self._case())
+        rebuilt = build_gamma_radar_geo_ref_plan(self._case())
+        self.assertEqual(rebuilt.case.output_dir, self.output)
 
 
 if __name__ == "__main__":

@@ -62,7 +62,7 @@ def main(arguments: Sequence[str] | None = None) -> int:
                     "reference_date": case.reference_date,
                     "primary_polarization": case.primary_polarization,
                     "output_dir": str(case.output_dir),
-                    "status": "skipped" if plan.skip else "ready",
+                    "status": "ready",
                     "commands": ["multi_look", "geocoding.py"],
                 },
                 ensure_ascii=False,

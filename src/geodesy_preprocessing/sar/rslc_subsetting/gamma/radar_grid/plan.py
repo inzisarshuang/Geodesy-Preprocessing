@@ -48,7 +48,6 @@ class GammaRadarCropPlan:
     lookup_table: Path
     roi: BaseGeometry
     buffered_roi: BaseGeometry
-    existing_complete: bool
 
 
 def _nonempty_file(path: Path, label: str) -> Path:
@@ -80,14 +79,9 @@ def build_crop_plan(
     output = config.output_dir.resolve()
     if output == source_root or output.is_relative_to(source_root):
         raise ValueError("crop output must not be the source stack or inside it")
-    existing_complete = False
     if output.exists():
         if not output.is_dir():
             raise FileExistsError(f"crop output conflicts with a file: {output}")
-        existing_complete = all(
-            (output / name).is_file()
-            for name in ("registered_stack.json", "crop_window.json")
-        )
 
     selected = manifest.polarizations if config.polarizations is None else config.polarizations
     missing = tuple(value for value in selected if value not in manifest.polarizations)
@@ -159,7 +153,6 @@ def build_crop_plan(
         lookup_table=lookup,
         roi=roi,
         buffered_roi=buffered,
-        existing_complete=existing_complete,
     )
 
 

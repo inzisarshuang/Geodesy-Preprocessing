@@ -130,7 +130,7 @@ class OtherSarSlcRunnerTests(unittest.TestCase):
                 self.assertTrue((log_root / "stderr.log").is_file())
                 self.assertEqual(list(root.glob(".*.stage")), [])
 
-    def test_failure_preserves_earlier_scene_and_rerun_skips_it(self) -> None:
+    def test_failure_preserves_earlier_scene_and_rerun_recomputes_it(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             raw = root / "RAW"
@@ -149,7 +149,7 @@ class OtherSarSlcRunnerTests(unittest.TestCase):
             self.assertTrue(first.is_file())
             self.assertFalse(second.exists())
             summary = run_slc_batch(build_slc_plan(case), progress_sink=lambda line: None)
-            self.assertEqual((summary.completed, summary.skipped), (1, 1))
+            self.assertEqual((summary.completed, summary.skipped), (2, 0))
 
     def test_zero_exit_with_missing_output_publishes_nothing(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

@@ -267,6 +267,14 @@ class GeoRefRunnerTests(unittest.TestCase):
             self.assertEqual(payloads[-1]["status"], "success")
             self.assertEqual(payloads[-1]["item"], "20240905")
 
+            marker = plan.output_dir / "old-result"
+            marker.write_text("old", encoding="utf-8")
+            rerun = module.run_geo_ref(
+                plan, runner=ProductRunner(), progress_sink=lambda line: None
+            )
+            self.assertEqual(rerun.status, "success")
+            self.assertFalse(marker.exists())
+
     def test_concurrent_destination_is_never_replaced(self) -> None:
         module = self._module()
 

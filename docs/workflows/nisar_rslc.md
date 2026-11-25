@@ -13,7 +13,8 @@ geodesy-pre-sar-nisar-acquire --config PROJECT/config/download/nisar_rslc_downlo
 
 先人工检查覆盖图和筛选 CSV。Earthdata 凭据只从 `~/.netrc` 或环境变量读取。完成时
 每个选中产品都有结构有效的 `.h5`，没有遗留同名 `.part`，并生成无敏感信息的
-`source_manifest.json`。
+`source_manifest.json`，放在 `NISAR/DOWNLOAD/RSLC/`；查询结果位于
+`NISAR/QUERY/RSLC/`。
 
 ## 导入 Frequency A
 

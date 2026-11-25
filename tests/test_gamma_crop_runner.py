@@ -204,7 +204,7 @@ class GammaCropRunnerTests(unittest.TestCase):
             self.assertTrue((plan.output_dir / "foreign").is_file())
             self.assertFalse((plan.output_dir / "registered_stack.json").exists())
 
-    def test_identical_inputs_skip_and_changed_inputs_require_new_output(self) -> None:
+    def test_identical_and_changed_inputs_both_recompute_output(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             plan = self._plan(root)
@@ -215,26 +215,29 @@ class GammaCropRunnerTests(unittest.TestCase):
                 progress_sink=lambda line: None,
             )
             existing_plan = build_crop_plan(plan.config)
-            skipped = run_crop_stack(
+            marker = existing_plan.output_dir / "old-result"
+            marker.write_text("old", encoding="utf-8")
+            rerun = run_crop_stack(
                 existing_plan,
-                command_runner=FakeSlcRunner(fail_on_copy=1),
+                command_runner=FakeSlcRunner(),
                 geometry_builder=fake_geometry,
                 progress_sink=lambda line: None,
             )
-            self.assertEqual((skipped.completed, skipped.skipped), (0, 2))
+            self.assertEqual((rerun.completed, rerun.skipped), (2, 0))
+            self.assertFalse(marker.exists())
 
             changed = build_crop_plan(
                 dataclasses.replace(plan.config, buffer_km=6.0)
             )
-            with self.assertRaisesRegex(FileExistsError, "different inputs"):
-                run_crop_stack(
-                    changed,
-                    command_runner=FakeSlcRunner(),
-                    geometry_builder=fake_geometry,
-                    progress_sink=lambda line: None,
-                )
+            changed_result = run_crop_stack(
+                changed,
+                command_runner=FakeSlcRunner(),
+                geometry_builder=fake_geometry,
+                progress_sink=lambda line: None,
+            )
+            self.assertEqual((changed_result.completed, changed_result.skipped), (2, 0))
             provenance = json.loads((changed.output_dir / "crop_window.json").read_text())
-            self.assertEqual(provenance["buffer_km"], 5.0)
+            self.assertEqual(provenance["buffer_km"], 6.0)
             self.assertEqual(
                 provenance["aoi_sha256"],
                 hashlib.sha256(changed.config.kml_file.read_bytes()).hexdigest(),

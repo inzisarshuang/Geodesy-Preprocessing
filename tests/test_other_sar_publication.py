@@ -57,6 +57,20 @@ class OtherSarPublicationTests(unittest.TestCase):
         )
         self.assertFalse((self.stage / "scene.slc").exists())
 
+    def test_publication_replaces_existing_group(self) -> None:
+        self._make_staged_outputs()
+        self.dest.mkdir()
+        for output in self.outputs:
+            output.destination.write_bytes(b"old")
+
+        publish_output_group(self.stage, self.outputs)
+
+        self.assertEqual(self.outputs[0].destination.read_bytes(), b"slc")
+        self.assertEqual(
+            self.outputs[1].destination.read_text(), "range_samples: 2\n"
+        )
+        self.assertEqual(tuple(self.dest.glob("*.backup")), ())
+
     def test_empty_staged_file_and_destination_symlink_are_rejected(self) -> None:
         self._make_staged_outputs()
         (self.stage / "scene.slc").write_bytes(b"")

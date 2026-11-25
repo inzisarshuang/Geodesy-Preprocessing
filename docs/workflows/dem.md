@@ -41,8 +41,8 @@ TOPOGRAPHY/
 GAMMA DEM 字节数必须一致。垂向基准由输入 DEM 和 `geoid_correction_flag` 决定，命令
 成功不等于基准设置一定正确。
 
-重复运行时，完整 GeoTIFF 会在校验后复用，不再读取 API key 或联网；完整 GAMMA
-结果也会校验后跳过。残缺 GAMMA 结果会停止并要求人工检查。
+重复运行时，完整 GeoTIFF 会在校验后作为下载缓存复用，不再读取 API key 或联网；
+如果启用 GAMMA 转换，则每次正式调用都重新转换，新 DEM 和参数文件验证成功后成组替换旧结果。
 
 ## 日志与下一阶段
 

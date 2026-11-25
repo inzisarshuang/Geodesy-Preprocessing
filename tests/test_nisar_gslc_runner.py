@@ -89,20 +89,29 @@ class NisarGslcRunnerTests(unittest.TestCase):
             4,
         )
 
-    def test_complete_identical_rerun_skips_but_stale_and_incomplete_outputs_stop(self) -> None:
+    def test_rerun_replaces_complete_stale_and_incomplete_outputs(self) -> None:
         runner.run_nisar_gslc_stack(self.plan, progress_sink=lambda line: None)
         second = runner.run_nisar_gslc_stack(self.plan, progress_sink=lambda line: None)
-        self.assertEqual((second.completed, second.skipped), (0, 4))
+        self.assertEqual((second.completed, second.skipped), (4, 0))
 
         changed = replace(self.plan, case=replace(self.plan.case, buffer_km=1.0))
-        with self.assertRaisesRegex(FileExistsError, "different inputs"):
-            runner.run_nisar_gslc_stack(changed, progress_sink=lambda line: None)
+        changed_summary = runner.run_nisar_gslc_stack(
+            changed, progress_sink=lambda line: None
+        )
+        self.assertEqual((changed_summary.completed, changed_summary.skipped), (4, 0))
 
         other = make_gslc_plan(self.root / "other")
         other.case.output_dir.mkdir(parents=True)
-        (other.case.output_dir / "partial").write_text("bad", encoding="utf-8")
-        with self.assertRaisesRegex(FileExistsError, "incomplete"):
-            runner.run_nisar_gslc_stack(other, progress_sink=lambda line: None)
+        partial = other.case.output_dir / "partial"
+        partial.write_text("bad", encoding="utf-8")
+        other_summary = runner.run_nisar_gslc_stack(
+            other, progress_sink=lambda line: None
+        )
+        self.assertEqual(
+            (other_summary.completed, other_summary.skipped),
+            (other_summary.total, 0),
+        )
+        self.assertFalse(partial.exists())
 
     def test_mid_stack_failure_publishes_nothing_preserves_sources_and_redacts_log(self) -> None:
         before = {asset.source_file: _sha256(asset.source_file) for asset in self.plan.assets}

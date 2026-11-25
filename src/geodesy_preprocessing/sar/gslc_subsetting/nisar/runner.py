@@ -32,10 +32,7 @@ from geodesy_preprocessing.sar.common.models import (
     RegisteredStackAsset,
     RegisteredStackManifest,
 )
-from geodesy_preprocessing.sar.common.stack_manifest import (
-    read_stack_manifest,
-    write_stack_manifest,
-)
+from geodesy_preprocessing.sar.common.stack_manifest import write_stack_manifest
 from geodesy_preprocessing.sar.inventory.common.images import write_images_inventory
 
 from .crop import write_gslc_complex_geotiff, write_gslc_quicklook
@@ -100,31 +97,6 @@ def _validate_snapshot(snapshot: dict[Path, tuple[int, int]]) -> None:
         actual = (path.stat().st_size, path.stat().st_mtime_ns)
         if actual != expected:
             raise RuntimeError(f"source GSLC changed during execution: {path.name}")
-
-
-def _existing_matches(plan: NisarGslcStackPlan, signature: str) -> bool:
-    output = plan.case.output_dir
-    if not output.exists():
-        return False
-    if not output.is_dir():
-        raise FileExistsError(f"GSLC stack output conflicts with a file: {output}")
-    required = (
-        "registered_stack.json",
-        "images",
-        "crop_window.json",
-        "quality.json",
-        "provenance.json",
-    )
-    if not all((output / name).is_file() for name in required):
-        raise FileExistsError(f"incomplete GSLC stack output exists: {output}")
-    try:
-        provenance = json.loads((output / "provenance.json").read_text(encoding="utf-8"))
-        read_stack_manifest(output / "registered_stack.json")
-    except (OSError, ValueError, KeyError, json.JSONDecodeError) as error:
-        raise FileExistsError(f"incomplete GSLC stack output exists: {output}") from error
-    if provenance.get("input_signature") != signature:
-        raise FileExistsError(f"GSLC stack output was produced from different inputs: {output}")
-    return True
 
 
 def _asset_quality(path: Path) -> dict[str, object]:
@@ -206,9 +178,6 @@ def run_nisar_gslc_stack(
             stream.write(line + "\n")
 
     try:
-        if _existing_matches(plan, signature):
-            event(event="batch_finished", status="skipped", total=total)
-            return GslcRunSummary(total, 0, total, 0, output)
         snapshot = _snapshot(plan)
         staging = Path(
             tempfile.mkdtemp(prefix=f".{output.name}.", suffix=".stage", dir=output.parent)

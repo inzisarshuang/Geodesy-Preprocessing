@@ -26,7 +26,7 @@ from pathlib import Path
 
 from geodesy_preprocessing.common.progress import emit_progress
 from geodesy_preprocessing.common.figures import centralize_pre_figures
-from geodesy_preprocessing.common.reuse import ReuseState, classify_output
+from geodesy_preprocessing.common.publication import atomic_replace_directory
 from geodesy_preprocessing.sar.acquisition.sentinel1.burst_table import (
     read_burst_number_table,
     write_reference_burst_table,
@@ -359,22 +359,6 @@ def _item_signature(plan: SlcBatchPlan, item: SlcItemPlan) -> str:
     return hashlib.sha256(encoded).hexdigest()
 
 
-def _validate_item_products(output: Path, manifest: dict[str, object]) -> bool:
-    products = manifest.get("required_products")
-    if not isinstance(products, list) or not products:
-        return False
-    for value in products:
-        if not isinstance(value, str):
-            return False
-        relative = Path(value)
-        if relative.is_absolute() or ".." in relative.parts:
-            return False
-        candidate = output / relative
-        if candidate.is_symlink() or not candidate.is_file() or candidate.stat().st_size < 1:
-            return False
-    return True
-
-
 def run_gamma_tops_slc(
     plan: SlcBatchPlan,
     *,
@@ -411,19 +395,6 @@ def run_gamma_tops_slc(
 
         send("item_started", "running", current_stage)
         signature = _item_signature(plan, item)
-        reuse = classify_output(
-            item.output_dir, "completion.json", signature, _validate_item_products
-        )
-        if reuse.state is ReuseState.COMPLETE:
-            skipped += 1
-            send("item_finished", "skipped", current_stage)
-            outputs.append(item.output_dir)
-            continue
-        if reuse.state is not ReuseState.ABSENT:
-            failed += 1
-            send("item_finished", "failed", current_stage)
-            raise FileExistsError(reuse.guidance)
-
         staging = Path(
             tempfile.mkdtemp(
                 prefix=f".{item.item}.", suffix=".stage", dir=plan.slc_dir
@@ -468,9 +439,7 @@ def run_gamma_tops_slc(
                 + "\n",
                 encoding="utf-8",
             )
-            if item.output_dir.exists():
-                item.output_dir.rmdir()
-            os.replace(staging, item.output_dir)
+            atomic_replace_directory(staging, item.output_dir)
             centralize_pre_figures(
                 item.output_dir, plan.figure_dir / item.item
             )

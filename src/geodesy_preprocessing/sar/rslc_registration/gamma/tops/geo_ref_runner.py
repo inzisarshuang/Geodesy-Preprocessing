@@ -25,6 +25,7 @@ from pathlib import Path
 
 from geodesy_preprocessing.common.figures import centralize_pre_figures
 from geodesy_preprocessing.common.progress import emit_progress
+from geodesy_preprocessing.common.publication import atomic_replace_directory
 from geodesy_preprocessing.sar.slc_generation.gamma.tops.view import (
     read_slc_tab_rows,
     stage_slc_tabs,
@@ -361,7 +362,7 @@ def run_gamma_tops_geo_ref(
     progress_sink: Callable[[str], None] = print,
     runner: GeoRefRunner | None = None,
 ) -> GeoRefResult:
-    """Execute or skip one plan, publishing only a verified staging directory."""
+    """Execute one plan and atomically replace it with a verified staging directory."""
 
     current_stage = "discover"
 
@@ -379,10 +380,7 @@ def run_gamma_tops_geo_ref(
         )
 
     send("item_started", "running", current_stage)
-    if plan.skip:
-        send("item_finished", "skipped", current_stage)
-        return GeoRefResult("skipped", plan.output_dir)
-
+    output_existed = plan.output_dir.exists()
     plan.output_dir.parent.mkdir(parents=True, exist_ok=True)
     staging = Path(
         tempfile.mkdtemp(
@@ -400,11 +398,11 @@ def run_gamma_tops_geo_ref(
     try:
         (runner or GeoRefRunner()).run_stages(plan, staging, stage_sink=stage_started)
         stage_started("publish")
-        if plan.output_dir.exists():
+        if not output_existed and plan.output_dir.exists():
             raise FileExistsError(
                 f"DEM-geocoding destination appeared during execution: {plan.output_dir}"
             )
-        os.replace(staging, plan.output_dir)
+        atomic_replace_directory(staging, plan.output_dir)
         centralize_pre_figures(plan.output_dir, plan.figure_dir)
         send("item_finished", "success", "publish")
         return GeoRefResult("success", plan.output_dir)

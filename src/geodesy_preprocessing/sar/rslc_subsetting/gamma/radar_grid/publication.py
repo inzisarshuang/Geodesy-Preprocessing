@@ -12,8 +12,9 @@ from __future__ import annotations
 
 import hashlib
 import json
-import os
 from pathlib import Path
+
+from geodesy_preprocessing.common.publication import atomic_replace_directory
 
 from .plan import GammaRadarCropPlan
 
@@ -51,16 +52,9 @@ def crop_aoi_digest(plan: GammaRadarCropPlan) -> str:
 
 
 def atomic_publish_crop(staging: Path, output: Path) -> None:
-    """Atomically publish a new target without replacing existing science."""
+    """Atomically publish a target, replacing an earlier completed result."""
 
-    source = Path(staging).resolve(strict=True)
-    destination = Path(output).resolve()
-    destination.parent.mkdir(parents=True, exist_ok=True)
-    if source.parent != destination.parent:
-        raise ValueError("crop staging and output must have the same parent directory")
-    if destination.exists() or destination.is_symlink():
-        raise FileExistsError(f"crop destination appeared during execution: {destination}")
-    os.replace(source, destination)
+    atomic_replace_directory(staging, output)
 
 
 __all__ = ["atomic_publish_crop", "crop_aoi_digest", "crop_input_signature"]

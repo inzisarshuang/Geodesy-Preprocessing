@@ -121,19 +121,26 @@ class DemCliTests(unittest.TestCase):
         ):
             self.assertIn(expected, output)
 
-    def test_existing_gamma_outputs_stop_before_download_and_are_preserved(self) -> None:
+    def test_existing_gamma_outputs_do_not_block_conversion_dispatch(self) -> None:
         self.write_cfg(run_srtm2dem="true")
         output = self.root / "output"
         output.mkdir()
+        (output / "dem.tif").write_bytes(b"existing-geotiff")
         paths = [output / "srtm.dem", output / "srtm.dem.par", output / "srtm2dem.log"]
         for index, path in enumerate(paths):
             path.write_bytes(f"original-{index}".encode())
-        before = fingerprint(*paths)
-        with patch("geodesy_preprocessing.dem.cli.download_dem") as download:
+        with (
+            patch("geodesy_preprocessing.dem.cli.validate_geotiff", return_value={}),
+            patch("geodesy_preprocessing.dem.cli.download_dem") as download,
+            patch(
+                "geodesy_preprocessing.dem.cli.convert_with_srtm2dem",
+                return_value={"status": "complete"},
+            ) as convert,
+        ):
             code = self.invoke(["--config", str(self.cfg)])
-        self.assertEqual(code, 1)
+        self.assertEqual(code, 0)
         download.assert_not_called()
-        self.assertEqual(fingerprint(*paths), before)
+        convert.assert_called_once()
 
     def test_rejects_unknown_key_and_invalid_input_mode(self) -> None:
         self.write_cfg(typo=1)
@@ -259,7 +266,7 @@ class DemCliTests(unittest.TestCase):
             self.root / "gamma/srtm.dem",
         )
 
-    def test_complete_download_and_gamma_outputs_are_validated_and_skipped(self) -> None:
+    def test_complete_download_is_reused_but_gamma_conversion_is_rerun(self) -> None:
         self.write_cfg(
             run_srtm2dem="true",
             srtm2dem_output_dir="gamma",
@@ -293,8 +300,8 @@ class DemCliTests(unittest.TestCase):
         self.assertEqual(result, output)
         resolve_key.assert_not_called()
         download.assert_not_called()
-        convert.assert_not_called()
-        self.assertIn("完整，跳过转换", self.stdout.getvalue())
+        convert.assert_called_once()
+        self.assertNotIn("完整，跳过转换", self.stdout.getvalue())
 
 
 if __name__ == "__main__":

@@ -18,7 +18,6 @@ from pathlib import Path
 
 from ..config import OtherSarSlcCase, validate_safe_date, validate_within_root
 from ..models import CommandSpec, ProductOutput, ScenePlan, SourceProduct
-from ..publication import classify_output_group
 from .base import PreparedProduct
 
 _DATE = re.compile(r"(?<!\d)(\d{8})(?!\d)")
@@ -224,8 +223,7 @@ class SaocomAdapter:
                     ProductOutput(polarization, par_relative, destination_root / par.name),
                 )
             )
-        state = "skip" if classify_output_group(outputs) == "complete" else "run"
-        return ScenePlan(prepared.product, tuple(commands), tuple(outputs), state)
+        return ScenePlan(prepared.product, tuple(commands), tuple(outputs), "run")
 
     def finalize_scene(self, prepared: PreparedProduct, plan: ScenePlan) -> None:
         """Leave SAOCOM products unchanged because staged names are fixed."""

@@ -86,7 +86,6 @@ class NisarGslcStackPlan:
     roi_coverage: tuple[tuple[str, float], ...]
     buffered_coverage: tuple[tuple[str, float], ...]
     assets: tuple[NisarGslcAssetPlan, ...]
-    existing_complete: bool
 
 
 __all__ = [

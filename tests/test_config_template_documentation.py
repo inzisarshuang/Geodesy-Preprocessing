@@ -91,12 +91,12 @@ class ConfigTemplateDocumentationTests(unittest.TestCase):
             "nisar_rslc_download.cfg": (
                 "product_type = RSLC",
                 "NISAR_RSLC_footprints_all.png",
-                "INPUT/NISAR/RSLC",
+                "NISAR/DOWNLOAD/RSLC",
             ),
             "nisar_gslc_download.cfg": (
                 "product_type = GSLC",
                 "NISAR_GSLC_footprints_all.png",
-                "INPUT/NISAR/GSLC",
+                "NISAR/DOWNLOAD/GSLC",
             ),
         }
         common = (
@@ -127,12 +127,14 @@ class ConfigTemplateDocumentationTests(unittest.TestCase):
         for marker in (
             "PRE_NISAR_GSLC",
             "Native，不使用 GAMMA",
-            "source_manifest = INPUT/NISAR/GSLC/source_manifest.json",
+            "source_manifest = NISAR/DOWNLOAD/GSLC/source_manifest.json",
             "[case:la]",
             "frequency = A",
+            "output_dir = NISAR/LA/NATIVE/GSLC",
             "[case:lb]",
             "frequency = B",
-            "--plan-only",
+            "output_dir = NISAR/LB/NATIVE/GSLC",
+            "--dry-run",
             "complex64",
             "registered_stack.json",
             "LOG/PRE/NISAR/GSLC",

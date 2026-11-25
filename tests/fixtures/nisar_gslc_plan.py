@@ -97,7 +97,6 @@ def make_gslc_plan(
         roi_coverage=tuple((date, 1.0) for date in dates),
         buffered_coverage=tuple((date, 1.0) for date in dates),
         assets=tuple(assets),
-        existing_complete=False,
     )
 
 

@@ -94,16 +94,14 @@ class GammaDemTests(unittest.TestCase):
             fingerprint(self.output_dem, self.output_par, self.output_log), before
         )
 
-    def test_existing_outputs_are_preserved_without_overwrite(self) -> None:
+    def test_existing_outputs_are_replaced_without_a_force_flag(self) -> None:
         self.output_dem.write_bytes(b"old-dem")
         self.output_par.write_bytes(b"old-par")
         self.output_log.write_bytes(b"old-log")
-        before = fingerprint(self.output_dem, self.output_par, self.output_log)
-        with self.assertRaises(FileExistsError):
-            self.convert("success", overwrite=False)
-        self.assertEqual(
-            fingerprint(self.output_dem, self.output_par, self.output_log), before
-        )
+        metadata = self.convert("success", overwrite=False)
+        self.assertEqual(metadata["data_format"], "REAL*4")
+        self.assertEqual(self.output_dem.read_bytes(), b"\0" * 24)
+        self.assertIn(b"data_format: REAL*4", self.output_par.read_bytes())
 
     def test_successful_overwrite_replaces_the_complete_output_group(self) -> None:
         self.output_dem.write_bytes(b"old-dem")

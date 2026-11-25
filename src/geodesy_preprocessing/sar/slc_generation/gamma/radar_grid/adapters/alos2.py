@@ -17,7 +17,6 @@ from pathlib import Path, PurePosixPath
 
 from ..config import OtherSarSlcCase, validate_safe_date, validate_within_root
 from ..models import CommandSpec, ProductOutput, ScenePlan, SourceProduct
-from ..publication import classify_output_group
 from .base import PreparedProduct, _validated_members, safe_extract_zip
 
 _DATE_PATTERN = re.compile(r"Img_SceneCenterDateTime[^\r\n\d]*(\d{8})")
@@ -180,8 +179,7 @@ class ALOS2Adapter:
                     ),
                 )
             )
-        state = "skip" if classify_output_group(outputs) == "complete" else "run"
-        return ScenePlan(product, tuple(commands), tuple(outputs), state)
+        return ScenePlan(product, tuple(commands), tuple(outputs), "run")
 
     def finalize_scene(self, prepared: PreparedProduct, plan: ScenePlan) -> None:
         """Leave ALOS outputs unchanged because commands write fixed staged paths."""

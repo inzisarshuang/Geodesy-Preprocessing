@@ -45,7 +45,6 @@ class GammaRadarGeoRefPlan:
     geocoding_quality: Path
     manifest: Path
     expected_outputs: tuple[Path, ...]
-    skip: bool
 
 
 def _regular_file(path: Path, label: str) -> Path:
@@ -137,11 +136,6 @@ def build_gamma_radar_geo_ref_plan(
         quality,
         manifest,
     )
-    present = tuple(path.is_file() and path.stat().st_size > 0 for path in expected)
-    if output.exists() and any(present) and not all(present):
-        raise FileExistsError(
-            f"incomplete reference-geometry destination: {output}"
-        )
     return GammaRadarGeoRefPlan(
         case=case,
         dates=dates,
@@ -161,7 +155,6 @@ def build_gamma_radar_geo_ref_plan(
         geocoding_quality=quality,
         manifest=manifest,
         expected_outputs=expected,
-        skip=all(present),
     )
 
 

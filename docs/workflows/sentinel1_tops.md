@@ -53,8 +53,8 @@ geodesy-pre-gamma-rslc-crop --config PROJECT/config/preprocess/gamma_rslc_crop.c
 ```
 
 先查看缓冲后的 KML 覆盖率与统一裁剪窗口；即使正式裁剪目录当前不完整，计划检查也
-不会因此失败。正式运行只复用清单完整且输入签名一致的结果；残缺或输入变化时停止，
-不会替换旧输出，应检查后删除旧目录或修改 `output_dir`。
+不会因此失败。正式运行每次都重新裁剪；新输出完整验证后原子替换旧目录，
+处理或发布失败时保留运行前的旧输出。
 完成标志是输出目录存在可读取的 `registered_stack.json`、`images`、
 `crop_window.json`，并且所选日期和极化全部存在。
 

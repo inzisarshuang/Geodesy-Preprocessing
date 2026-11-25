@@ -25,6 +25,7 @@ from pathlib import Path
 
 from geodesy_preprocessing.common.progress import emit_progress
 from geodesy_preprocessing.common.figures import centralize_pre_figures
+from geodesy_preprocessing.common.publication import atomic_replace_directory
 
 from .geo_ref_plan import GammaRadarGeoRefPlan
 
@@ -212,34 +213,11 @@ def run_gamma_radar_geo_ref(
     item = plan.root_name
     input_records = _input_records(plan)
     signature = _input_signature(plan, input_records)
-    if plan.skip:
-        try:
-            existing = json.loads(plan.manifest.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError) as error:
-            raise FileExistsError(
-                f"reference-geometry destination has invalid provenance: {plan.case.output_dir}"
-            ) from error
-        if existing.get("input_signature") != signature:
-            raise FileExistsError(
-                "reference-geometry destination was produced from different inputs"
-            )
-        progress_sink(
-            emit_progress(
-                event="item_finished",
-                task=task,
-                item=item,
-                index=1,
-                total=1,
-                stage="publish",
-                status="skipped",
-            )
-        )
-        return GammaRadarGeoRefResult("skipped", plan.case.output_dir, plan.manifest)
-
     run_environment = os.environ.copy()
     if environment:
         run_environment.update((str(key), str(value)) for key, value in environment.items())
     output = plan.case.output_dir
+    output_existed = output.exists()
     output.parent.mkdir(parents=True, exist_ok=True)
     staging = Path(
         tempfile.mkdtemp(
@@ -342,9 +320,9 @@ def run_gamma_radar_geo_ref(
             json.dumps(manifest, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
             encoding="utf-8",
         )
-        if output.exists():
+        if not output_existed and output.exists():
             raise FileExistsError(f"reference-geometry destination appeared during run: {output}")
-        os.replace(staging, output)
+        atomic_replace_directory(staging, output)
         centralize_pre_figures(
             output,
             plan.case.figure_dir

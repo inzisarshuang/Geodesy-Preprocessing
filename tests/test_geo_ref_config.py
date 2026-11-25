@@ -94,7 +94,7 @@ class GeoRefConfigTests(unittest.TestCase):
                 ),
             )
 
-    def test_config_cli_uses_recorded_task_and_skips_complete_output(self) -> None:
+    def test_config_cli_dispatches_complete_output_for_recomputation(self) -> None:
         module = self._module("geo_ref_config_cli")
         with tempfile.TemporaryDirectory() as directory:
             config = self._project(Path(directory))
@@ -104,14 +104,15 @@ class GeoRefConfigTests(unittest.TestCase):
                 "GEODESY_TASK": "PRE_S1_GEO_REF",
             }
 
-            with patch.dict(os.environ, environment), redirect_stdout(terminal):
+            with patch.object(module, "geo_ref_main", return_value=0) as invoked, patch.dict(
+                os.environ, environment
+            ), redirect_stdout(terminal):
                 exit_code = module.main(
                     ["--config", str(config), "--case", "2024_154"]
                 )
 
             self.assertEqual(exit_code, 0)
-            self.assertIn('"status":"skipped"', terminal.getvalue())
-            self.assertIn('"task":"PRE_S1_GEO_REF"', terminal.getvalue())
+            invoked.assert_called_once()
 
     def test_unknown_keys_and_partial_auto_oversampling_are_rejected(self) -> None:
         module = self._module("geo_ref_config")

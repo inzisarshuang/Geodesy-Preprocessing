@@ -181,7 +181,7 @@ output_dir = RAW/RSLC_CROP
             config.output_dir.mkdir()
             (config.output_dir / "unexpected.txt").write_text("conflict")
             existing_plan = build_crop_plan(config)
-            self.assertFalse(existing_plan.existing_complete)
+            self.assertEqual(existing_plan.output_dir, config.output_dir.resolve())
 
 
 if __name__ == "__main__":

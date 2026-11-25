@@ -16,7 +16,6 @@ from pathlib import Path
 
 from ..config import OtherSarSlcCase, validate_safe_date, validate_within_root
 from ..models import CommandSpec, ProductOutput, ScenePlan, SourceProduct
-from ..publication import classify_output_group
 from .base import PreparedProduct
 
 _DATE_PATTERN = re.compile(r"(?<!\d)(\d{8})(?!\d)")
@@ -166,8 +165,7 @@ class Lt1Adapter:
             ("HH", Path("products") / preview.name, case.slc_dir / preview.name),
         )
         outputs = tuple(ProductOutput(*values) for values in relative_outputs)
-        state = "skip" if classify_output_group(outputs) == "complete" else "run"
-        return ScenePlan(prepared.product, commands, outputs, state)
+        return ScenePlan(prepared.product, commands, outputs, "run")
 
     def finalize_scene(self, prepared: PreparedProduct, plan: ScenePlan) -> None:
         """Leave LT-1 products unchanged because every staged name is fixed."""

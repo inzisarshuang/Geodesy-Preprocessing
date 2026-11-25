@@ -236,6 +236,13 @@ RESEARCH_PROJECT/
 代码仓库只保存通用实现和空白模板。研究区 KML、填写后的 CFG、下载产品、中间结果和
 日志全部留在研究项目中。
 
+Analysis reads the registered-stack manifest from this common `GAMMA/RSLC/`
+tree. Methods such as `GAMMA_mb/` publish their own baseline and interferogram
+products in a sibling directory under the same case.
+
+Analysis 从公共 `GAMMA/RSLC/` 读取注册栈清单。以 `GAMMA_mb/` 为例，
+该路线生成的基线和干涉产品写到同一 case 下与 `GAMMA/` 并列的方法目录。
+
 ### 6.2 Configuration And Credentials / 配置与凭据
 
 - CFG 中的相对路径以 CFG 文件所在目录为基准。
@@ -247,8 +254,9 @@ RESEARCH_PROJECT/
 ### 6.3 Completion And Safe Reruns / 完成判断与安全重跑
 
 终端只显示统一的逐景进度；完整 stdout/stderr 和失败信息写入项目 `LOG/PRE/` 或阶段
-输出中的 `logs/`。完整且输入摘要一致的结果可以安全跳过；残缺结果或输入来源变化时
-会停止，不会静默覆盖正式结果。
+输出中的 `logs/`。每次正式调用都执行处理，输入摘要只用于溯源，不用于拒绝重跑。
+新结果在验证成功后事务式替换旧结果；处理或发布失败时保留运行前的正式结果。
+获取阶段仍可复用已验证的完整下载，避免无意义的重复联网。
 
 预处理完成不能只看命令退出码。最终应检查 `registered_stack.json`、日期清单、所选
 极化、裁剪窗口和质量记录是否完整，再将栈清单交给 `Geodesy-Analysis`。

@@ -288,42 +288,35 @@ pathlib.Path(sys.argv[sys.argv.index('--quality') + 1]).write_text({refined_qual
             ],
         )
 
-    def test_partial_destination_is_rejected_before_command_and_complete_skips(self) -> None:
+    def test_partial_complete_and_changed_outputs_are_recomputed(self) -> None:
         self.output.mkdir()
-        (self.output / "partial").write_bytes(b"x")
-        with self.assertRaisesRegex(FileExistsError, "incomplete RSLC destination"):
-            run_gamma_radar_coreg(
-                build_gamma_radar_coreg_plan(self._case()), environment=self._environment()
-            )
-        self.assertFalse(self.trace.exists())
-
-        for child in self.output.iterdir():
-            child.unlink()
-        self.output.rmdir()
+        partial = self.output / "partial"
+        partial.write_bytes(b"x")
         first = run_gamma_radar_coreg(
             build_gamma_radar_coreg_plan(self._case()), environment=self._environment()
         )
+        self.assertFalse(partial.exists())
         trace = self.trace.read_bytes()
         second = run_gamma_radar_coreg(
             build_gamma_radar_coreg_plan(self._case()), environment=self._environment()
         )
         self.assertEqual((first.native_root, second.native_root), (self.output, self.output))
-        self.assertEqual(trace, self.trace.read_bytes())
+        self.assertGreater(len(self.trace.read_bytes()), len(trace))
 
-        with self.assertRaisesRegex(FileExistsError, "different inputs"):
-            run_gamma_radar_coreg(
-                build_gamma_radar_coreg_plan(
-                    replace(self._case(), offset_range_window=512)
-                ),
-                environment=self._environment(),
-            )
+        changed = run_gamma_radar_coreg(
+            build_gamma_radar_coreg_plan(
+                replace(self._case(), offset_range_window=512)
+            ),
+            environment=self._environment(),
+        )
+        self.assertEqual(changed.native_root, self.output)
 
         self.input_files[0].write_bytes(b"changed-input")
-        with self.assertRaisesRegex(FileExistsError, "different inputs"):
-            run_gamma_radar_coreg(
-                build_gamma_radar_coreg_plan(self._case()),
-                environment=self._environment(),
-            )
+        changed_input = run_gamma_radar_coreg(
+            build_gamma_radar_coreg_plan(self._case()),
+            environment=self._environment(),
+        )
+        self.assertEqual(changed_input.native_root, self.output)
 
     def test_secondary_polarization_reuses_primary_lookup_and_offset(self) -> None:
         self._add_hv()

@@ -37,7 +37,6 @@ class GammaTopsGeoRefPlan:
     reference_flag: int
     incidence_flag: int
     expected_outputs: tuple[Path, ...]
-    skip: bool
 
 
 GeoRefPlan = GammaTopsGeoRefPlan
@@ -137,7 +136,6 @@ def build_gamma_tops_geo_ref_plan(
         output / f"{reference_text}{suffix}"
         for suffix in (".lt_fine", ".utm.dem", ".utm.dem.par", ".mli.utm", ".hgt_sim")
     )
-    complete = all(path.is_file() and path.stat().st_size > 0 for path in expected)
     if output.exists() and not output.is_dir():
         raise FileExistsError(f"DEM-geocoding destination is not a directory: {output}")
 
@@ -156,7 +154,6 @@ def build_gamma_tops_geo_ref_plan(
         reference_flag=reference_flag,
         incidence_flag=incidence_flag,
         expected_outputs=expected,
-        skip=complete,
     )
 
 

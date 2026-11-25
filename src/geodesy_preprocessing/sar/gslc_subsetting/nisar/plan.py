@@ -287,14 +287,6 @@ def build_nisar_gslc_stack_plan(case: NisarGslcStackCase) -> NisarGslcStackPlan:
         column_stop=column_stop,
     )
     output = case.output_dir.resolve()
-    existing_complete = False
-    if output.exists():
-        if not output.is_dir():
-            raise FileExistsError(f"GSLC stack output conflicts with a file: {output}")
-        required = ("registered_stack.json", "crop_window.json", "quality.json", "provenance.json")
-        existing_complete = all((output / name).is_file() for name in required)
-        if not existing_complete:
-            raise FileExistsError(f"incomplete or conflicting GSLC stack output exists: {output}")
     dates = tuple(date for date, _ in dated_records)
     assets = tuple(
         NisarGslcAssetPlan(
@@ -326,7 +318,6 @@ def build_nisar_gslc_stack_plan(case: NisarGslcStackCase) -> NisarGslcStackPlan:
         roi_coverage=tuple(coverages_roi),
         buffered_coverage=tuple(coverages_buffered),
         assets=assets,
-        existing_complete=existing_complete,
     )
 
 

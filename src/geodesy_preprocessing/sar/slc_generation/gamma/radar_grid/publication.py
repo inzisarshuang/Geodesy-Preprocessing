@@ -61,11 +61,9 @@ def classify_output_group(outputs: Sequence[ProductOutput]) -> str:
 def publish_output_group(
     staging_dir: Path, outputs: Sequence[ProductOutput]
 ) -> None:
-    """Validate and publish all staged outputs, rolling back on failure."""
+    """Validate and replace all staged outputs, rolling back on failure."""
 
     staging_root = staging_dir.resolve(strict=True)
-    if classify_output_group(outputs) != "absent":
-        raise ValueError("complete output group must be skipped before publication")
     staged: list[tuple[Path, Path]] = []
     for output in outputs:
         candidate = staging_root / output.staged_relative
@@ -92,10 +90,22 @@ def publish_output_group(
         staged.append((source, destination))
 
     published: list[tuple[Path, Path]] = []
+    backups: list[tuple[Path, Path]] = []
     try:
         for source, destination in staged:
             with source.open("rb") as stream:
                 os.fsync(stream.fileno())
+            if destination.exists():
+                descriptor, backup_name = tempfile.mkstemp(
+                    dir=destination.parent,
+                    prefix=f".{destination.name}.",
+                    suffix=".backup",
+                )
+                os.close(descriptor)
+                backup = Path(backup_name)
+                backup.unlink()
+                _replace_path(destination, backup)
+                backups.append((backup, destination))
             _replace_path(source, destination)
             published.append((source, destination))
             _fsync_directory(destination.parent)
@@ -103,7 +113,13 @@ def publish_output_group(
         for source, destination in reversed(published):
             if destination.exists() and not source.exists():
                 _replace_path(destination, source)
+        for backup, destination in reversed(backups):
+            if backup.exists():
+                _replace_path(backup, destination)
         raise
+    else:
+        for backup, _destination in backups:
+            backup.unlink(missing_ok=True)
 
 
 def publish_images_table(path: Path, dates: Sequence[str]) -> None:

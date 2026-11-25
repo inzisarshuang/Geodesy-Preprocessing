@@ -299,7 +299,7 @@ class SlcBatchTests(unittest.TestCase):
                 ["discover", "import", "multi_look", "preview", "publish", "publish"],
             )
 
-    def test_complete_item_is_skipped_without_running_commands(self) -> None:
+    def test_complete_item_is_recomputed_and_replaced(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:
             root = Path(temporary_directory)
             initial = self._plan(root, workflow_flag=1)
@@ -308,8 +308,8 @@ class SlcBatchTests(unittest.TestCase):
             )
             self.assertEqual(first.success, 1)
             destination = initial.items[0].output_dir
-            before = (destination / "20240905.vv.mli").read_bytes()
-            invocations_before = (destination / "invocations.jsonl").read_bytes()
+            marker = destination / "old-result.txt"
+            marker.write_text("old", encoding="ascii")
             plan = build_slc_plan(
                 initial.raw_dir, initial.slc_dir, "-", initial.images_file,
                 initial.burst_table, 4, 1, "-", 1,
@@ -320,14 +320,11 @@ class SlcBatchTests(unittest.TestCase):
                 plan, runner=self._runner([]), progress_sink=lines.append
             )
 
-            self.assertEqual((result.success, result.skipped), (0, 1))
-            self.assertEqual((destination / "20240905.vv.mli").read_bytes(), before)
-            self.assertEqual(
-                (destination / "invocations.jsonl").read_bytes(), invocations_before
-            )
-            self.assertIn('"status":"skipped"', lines[-1])
+            self.assertEqual((result.success, result.skipped), (1, 0))
+            self.assertFalse(marker.exists())
+            self.assertIn('"status":"success"', lines[-1])
 
-    def test_incomplete_destination_is_not_overwritten(self) -> None:
+    def test_incomplete_destination_is_replaced_after_success(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:
             root = Path(temporary_directory)
             plan = self._plan(root, workflow_flag=1)
@@ -336,10 +333,12 @@ class SlcBatchTests(unittest.TestCase):
             marker = destination / "keep.txt"
             marker.write_text("unchanged", encoding="ascii")
 
-            with self.assertRaisesRegex(FileExistsError, "incomplete"):
-                run_slc_batch(plan, runner=self._runner([]), progress_sink=lambda line: None)
+            result = run_slc_batch(
+                plan, runner=self._runner([]), progress_sink=lambda line: None
+            )
 
-            self.assertEqual(marker.read_text(encoding="ascii"), "unchanged")
+            self.assertEqual((result.success, result.skipped), (1, 0))
+            self.assertFalse(marker.exists())
             self.assertEqual(list(plan.slc_dir.glob(".*.stage")), [])
 
     def test_command_and_publication_failures_leave_no_final_partial_item(self) -> None:

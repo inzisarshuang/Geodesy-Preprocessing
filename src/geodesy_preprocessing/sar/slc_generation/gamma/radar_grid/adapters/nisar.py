@@ -18,7 +18,6 @@ from geodesy_preprocessing.sar.acquisition.nisar.hdf5 import inspect_nisar_rslc
 
 from ..config import OtherSarSlcCase, validate_safe_date, validate_within_root
 from ..models import CommandSpec, ProductOutput, ScenePlan, SourceProduct
-from ..publication import classify_output_group
 from .base import PreparedProduct
 
 
@@ -160,8 +159,7 @@ class NisarRslcAdapter:
                         destination=destination / staged.name,
                     )
                 )
-        state = "skip" if classify_output_group(outputs) == "complete" else "run"
-        return ScenePlan(prepared.product, tuple(commands), tuple(outputs), state)
+        return ScenePlan(prepared.product, tuple(commands), tuple(outputs), "run")
 
     def finalize_scene(self, prepared: PreparedProduct, plan: ScenePlan) -> None:
         """Validate FCOMPLEX output and read positive center frequencies from GAMMA parameters."""

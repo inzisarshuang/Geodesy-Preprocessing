@@ -29,7 +29,7 @@ from pathlib import Path
 
 from geodesy_preprocessing.common.figures import centralize_pre_figures
 from geodesy_preprocessing.common.progress import emit_progress
-from geodesy_preprocessing.common.reuse import ReuseState, classify_output
+from geodesy_preprocessing.common.publication import atomic_replace_directory
 from geodesy_preprocessing.sar.common.models import (
     BackendIdentity,
     GeometryType,
@@ -109,19 +109,6 @@ def _input_signature(plan: CoregPlan) -> str:
     }
     encoded = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()
     return hashlib.sha256(encoded).hexdigest()
-
-
-def _validate_complete_stack(output: Path, manifest: dict[str, object]) -> bool:
-    products = manifest.get("required_products")
-    if not isinstance(products, list) or not products:
-        return False
-    return all(
-        isinstance(value, str)
-        and ".." not in Path(value).parts
-        and (output / value).is_file()
-        and (output / value).stat().st_size > 0
-        for value in products
-    )
 
 
 def _publish_registration_manifest(plan: CoregPlan, native_root: Path) -> Path:
@@ -406,7 +393,7 @@ def run_gamma_tops_coreg(
     progress_sink: Callable[[str], None] = print,
     runner: CoregRunner | None = None,
 ) -> CoregBatchResult:
-    """Execute or skip a stack with per-scene progress and atomic publication."""
+    """Execute a stack with per-scene progress and atomic replacement."""
 
     order = (plan.reference,) + tuple(
         item.date for item in sorted(plan.items, key=lambda value: value.date) if item.date != plan.reference
@@ -434,31 +421,7 @@ def run_gamma_tops_coreg(
         )
 
     signature = _input_signature(plan)
-    reuse = classify_output(
-        plan.output_dir,
-        "completion.json",
-        signature,
-        _validate_complete_stack,
-    )
-    if reuse.state is ReuseState.COMPLETE:
-        for index, date in enumerate(order, 1):
-            send("item_started", date, index, "running", "discover")
-            send("item_finished", date, index, "skipped", "discover")
-        manifest_path = plan.output_dir / "registered_stack.json"
-        return CoregBatchResult(
-            0,
-            len(order),
-            0,
-            plan.output_dir,
-            (
-                _registration_result(plan, plan.output_dir)
-                if manifest_path.is_file()
-                else None
-            ),
-        )
-    if reuse.state is not ReuseState.ABSENT:
-        raise FileExistsError(reuse.guidance)
-
+    output_existed = plan.output_dir.exists()
     plan.output_dir.parent.mkdir(parents=True, exist_ok=True)
     staging = Path(
         tempfile.mkdtemp(
@@ -477,7 +440,7 @@ def run_gamma_tops_coreg(
 
     try:
         (runner or CoregRunner()).run_stack(plan, staging, item_sink=item_completed)
-        if plan.output_dir.exists():
+        if not output_existed and plan.output_dir.exists():
             raise FileExistsError(
                 f"RSLC destination appeared during execution: {plan.output_dir}"
             )
@@ -501,7 +464,7 @@ def run_gamma_tops_coreg(
             + "\n",
             encoding="utf-8",
         )
-        os.replace(staging, plan.output_dir)
+        atomic_replace_directory(staging, plan.output_dir)
         centralize_pre_figures(plan.output_dir, plan.figure_dir)
         return CoregBatchResult(
             len(completed),

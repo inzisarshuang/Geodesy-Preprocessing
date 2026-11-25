@@ -216,8 +216,18 @@ class CoregRunnerTests(unittest.TestCase):
             self.assertEqual([payload["item"] for payload in finished], ["20240905", "20240917"])
             self.assertEqual([payload["status"] for payload in finished], ["success", "success"])
 
-    def test_legacy_stack_without_completion_manifest_is_not_silently_skipped(self) -> None:
+    def test_legacy_stack_without_completion_manifest_is_replaced(self) -> None:
         module = self._module()
+
+        outer = self
+
+        class ProductRunner:
+            def run_stack(self, plan, staging, *, item_sink):
+                outer._write_raw_outputs(staging)
+                module.organize_coreg_outputs(plan, staging)
+                item_sink("20240905")
+                item_sink("20240917")
+                return module.CoregCommandResult("coregister", ("simulated",), 0)
 
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -225,24 +235,13 @@ class CoregRunnerTests(unittest.TestCase):
             for expected in initial.expected_outputs:
                 expected.parent.mkdir(parents=True, exist_ok=True)
                 expected.write_bytes(b"existing-product")
-            plan = replace(initial, skip=True)
-            before = tuple(
-                sorted(path.relative_to(plan.output_dir) for path in plan.output_dir.rglob("*"))
+            plan = initial
+            result = module.run_coreg(
+                plan, runner=ProductRunner(), progress_sink=lambda line: None
             )
 
-            with self.assertRaisesRegex(FileExistsError, "completion manifest"):
-                module.run_coreg(plan, progress_sink=lambda line: None)
-
-            self.assertFalse((plan.output_dir / "registered_stack.json").exists())
-            self.assertEqual(
-                before,
-                tuple(
-                    sorted(
-                        path.relative_to(plan.output_dir)
-                        for path in plan.output_dir.rglob("*")
-                    )
-                ),
-            )
+            self.assertEqual((result.success, result.skipped), (2, 0))
+            self.assertTrue((plan.output_dir / "registered_stack.json").is_file())
 
     def test_concurrent_destination_is_preserved_and_staging_is_removed(self) -> None:
         module = self._module()

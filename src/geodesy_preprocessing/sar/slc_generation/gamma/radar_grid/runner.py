@@ -24,7 +24,7 @@ from pathlib import Path
 from geodesy_preprocessing.common.case_layout import resolve_case_log_path
 from geodesy_preprocessing.common.figures import centralize_pre_figures
 from geodesy_preprocessing.common.progress import emit_progress
-from geodesy_preprocessing.common.reuse import ReuseState, classify_output
+from geodesy_preprocessing.common.publication import atomic_replace_directory
 
 from .models import CommandSpec
 from .publication import publish_images_table, publish_output_group
@@ -133,15 +133,6 @@ def _scene_signature(plan: SlcBatchPlan, product: object) -> str:
     return hashlib.sha256(encoded).hexdigest()
 
 
-def _scene_products_valid(outputs: tuple[object, ...]) -> bool:
-    return all(
-        not output.destination.is_symlink()
-        and output.destination.is_file()
-        and output.destination.stat().st_size > 0
-        for output in outputs
-    )
-
-
 def run_gamma_radar_slc(
     plan: SlcBatchPlan,
     *,
@@ -192,37 +183,6 @@ def run_gamma_radar_slc(
             scene = plan.adapter.build_scene_plan(case, prepared)
             signature = _scene_signature(plan, product)
             completion_dir = case.slc_dir / ".completion" / product.date
-            reuse = classify_output(
-                completion_dir,
-                "completion.json",
-                signature,
-                lambda _root, _manifest: _scene_products_valid(scene.outputs),
-            )
-            existing_outputs = tuple(
-                output.destination.exists() or output.destination.is_symlink()
-                for output in scene.outputs
-            )
-            if reuse.state is ReuseState.ABSENT and any(existing_outputs):
-                raise FileExistsError(
-                    f"incomplete output group for {product.date}: completion manifest "
-                    f"is missing. Delete the scene products after inspection, or choose "
-                    "a different output directory; existing scientific products were not modified"
-                )
-            if reuse.state is ReuseState.COMPLETE:
-                skipped += 1
-                _event(
-                    progress_sink,
-                    event="item_finished",
-                    task=task,
-                    status="skipped",
-                    item=product.date,
-                    index=index,
-                    total=total,
-                    stage="publish",
-                )
-                continue
-            if reuse.state is not ReuseState.ABSENT:
-                raise FileExistsError(reuse.guidance)
             with stdout_log.open("w", encoding="utf-8") as stdout, stderr_log.open(
                 "w", encoding="utf-8"
             ) as stderr:
@@ -287,7 +247,7 @@ def run_gamma_radar_slc(
                 + "\n",
                 encoding="utf-8",
             )
-            os.replace(staged_completion, completion_dir)
+            atomic_replace_directory(staged_completion, completion_dir)
             centralize_pre_figures(
                 case.slc_dir,
                 case.figure_dir

@@ -57,11 +57,10 @@ class GeoRefPlanTests(unittest.TestCase):
             self.assertIsNone(plan.latitude_oversampling)
             self.assertIsNone(plan.longitude_oversampling)
             self.assertEqual((plan.reference_flag, plan.incidence_flag), (1, 0))
-            self.assertFalse(plan.skip)
             with self.assertRaises(Exception):
                 plan.reference = "20240906"
 
-    def test_complete_destination_is_skipped_but_partial_output_is_not(self) -> None:
+    def test_complete_and_partial_destinations_are_both_planned_for_rerun(self) -> None:
         module = self._module()
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -80,12 +79,12 @@ class GeoRefPlanTests(unittest.TestCase):
 
             plan = module.build_geo_ref_plan("20240905", dem, slc, output, 7, 2)
 
-            self.assertTrue(plan.skip)
             (output / required[-1]).unlink()
             incomplete = module.build_geo_ref_plan(
                 "20240905", dem, slc, output, 7, 2
             )
-            self.assertFalse(incomplete.skip)
+            self.assertEqual(plan.output_dir, output)
+            self.assertEqual(incomplete.output_dir, output)
 
     def test_rejects_invalid_reference_ambiguous_dem_and_partial_oversampling(self) -> None:
         module = self._module()

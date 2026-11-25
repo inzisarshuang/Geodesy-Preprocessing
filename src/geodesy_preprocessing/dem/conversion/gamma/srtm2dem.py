@@ -188,13 +188,6 @@ def convert_with_srtm2dem(
         if log_path.parent != output_dem.parent:
             raise ValueError("srtm2dem log must share the DEM output directory")
         destinations.append(log_path)
-    existing = [str(path) for path in destinations if path.exists()]
-    if existing and not overwrite:
-        raise FileExistsError(
-            "srtm2dem output already exists and will be replaced: "
-            + ", ".join(existing)
-        )
-
     output_dem.parent.mkdir(parents=True, exist_ok=True)
     environment = os.environ.copy()
     if gdal_bin_dir is not None:
@@ -278,7 +271,7 @@ def convert_with_srtm2dem(
 def run_gamma_dem_convert(
     case: GammaDemConvertCase, *, dry_run: bool = False
 ) -> dict[str, object] | None:
-    """Run, preview, or safely skip one standalone GAMMA DEM conversion."""
+    """Run or preview one standalone GAMMA DEM conversion."""
 
     if not isinstance(case, GammaDemConvertCase):
         raise TypeError("case must be GammaDemConvertCase")
@@ -305,17 +298,6 @@ def run_gamma_dem_convert(
     destinations = [case.output_dem, case.output_par]
     if case.log_path is not None:
         destinations.append(case.log_path)
-    existing = [path for path in destinations if path.exists()]
-    if existing and not case.overwrite:
-        if len(existing) != len(destinations):
-            raise RuntimeError(
-                "incomplete GAMMA DEM output exists; inspect or explicitly enable overwrite: "
-                + ", ".join(str(path) for path in existing)
-            )
-        metadata = validate_gamma_dem(case.output_dem, case.output_par)
-        metadata["status"] = "skipped_complete"
-        return metadata
-
     arguments = [
         case.command,
         str(case.input_geotiff),
@@ -337,7 +319,7 @@ def run_gamma_dem_convert(
         geoid_path=case.geoid_path,
         gdal_bin_dir=case.gdal_bin_dir,
         log_path=case.log_path,
-        overwrite=case.overwrite,
+        overwrite=True,
     )
 
 

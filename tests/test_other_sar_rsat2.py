@@ -115,7 +115,7 @@ class Rsat2AdapterTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "duplicate acquisition date"):
             Rsat2Adapter().discover(self._case(("HH",)))
 
-    def test_partial_secondary_output_rejects_the_whole_scene(self) -> None:
+    def test_partial_secondary_output_is_planned_for_replacement(self) -> None:
         write_rsat2_product(self.raw, date="20260922", polarizations=("HH", "HV"))
         adapter = Rsat2Adapter()
         case = self._case(("HH", "HV"))
@@ -128,8 +128,8 @@ class Rsat2AdapterTests(unittest.TestCase):
         (hh / "20260922.slc").write_bytes(b"slc")
         (hh / "20260922.slc.par").write_bytes(b"par")
 
-        with self.assertRaisesRegex(ValueError, "incomplete output group"):
-            adapter.build_scene_plan(case, prepared)
+        plan = adapter.build_scene_plan(case, prepared)
+        self.assertEqual(plan.state, "run")
         self.assertFalse((self.slc / "HV_SLC/20260922.slc").exists())
 
 

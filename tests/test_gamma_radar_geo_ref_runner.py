@@ -167,7 +167,7 @@ summary.write_text('quality ok\\n')
         self.assertTrue(raised.exception.stderr_log.is_file())
         self.assertFalse(self.output.exists())
 
-    def test_complete_identical_output_skips_without_commands(self) -> None:
+    def test_complete_identical_output_runs_commands_again(self) -> None:
         first = run_gamma_radar_geo_ref(
             build_gamma_radar_geo_ref_plan(self._case()),
             environment=self._environment(),
@@ -177,20 +177,20 @@ summary.write_text('quality ok\\n')
             build_gamma_radar_geo_ref_plan(self._case()),
             environment=self._environment(),
         )
-        self.assertEqual((first.status, second.status), ("complete", "skipped"))
-        self.assertEqual(self.trace.read_bytes(), trace_before)
+        self.assertEqual((first.status, second.status), ("complete", "complete"))
+        self.assertGreater(len(self.trace.read_bytes()), len(trace_before))
 
-    def test_complete_output_rejects_changed_inputs(self) -> None:
+    def test_complete_output_accepts_changed_inputs_and_recomputes(self) -> None:
         run_gamma_radar_geo_ref(
             build_gamma_radar_geo_ref_plan(self._case()),
             environment=self._environment(),
         )
         self.dem.write_bytes(b"changed-dem")
-        with self.assertRaisesRegex(FileExistsError, "different inputs"):
-            run_gamma_radar_geo_ref(
-                build_gamma_radar_geo_ref_plan(self._case()),
-                environment=self._environment(),
-            )
+        result = run_gamma_radar_geo_ref(
+            build_gamma_radar_geo_ref_plan(self._case()),
+            environment=self._environment(),
+        )
+        self.assertEqual(result.status, "complete")
 
 
 if __name__ == "__main__":

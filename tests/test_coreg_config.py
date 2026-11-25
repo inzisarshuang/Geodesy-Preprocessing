@@ -101,7 +101,7 @@ class CoregConfigTests(unittest.TestCase):
             self.assertIn("--bridge-mode", arguments)
             self.assertIn("none", arguments)
 
-    def test_config_cli_reports_every_existing_scene_as_skipped(self) -> None:
+    def test_config_cli_dispatches_existing_output_for_recomputation(self) -> None:
         module = self._module("coreg_config_cli")
         with tempfile.TemporaryDirectory() as directory:
             config = self._project(Path(directory))
@@ -110,46 +110,15 @@ class CoregConfigTests(unittest.TestCase):
                 "GEODESY_PROGRESS_PROTOCOL": "1",
                 "GEODESY_TASK": "PRE_S1_COREG",
             }
-            config_module = self._module("coreg_config")
-            plan_module = self._module("coreg_plan")
-            runner_module = self._module("coreg_runner")
-            case = config_module.load_coreg_config(config)[0]
-            plan = plan_module.build_coreg_plan(
-                case.slc_dir,
-                case.dem_geocode_dir,
-                case.output_dir,
-                case.reference,
-                case.images_file,
-                case.range_looks,
-                case.azimuth_looks,
-                coherence_threshold=case.coherence_threshold,
-                fraction_threshold=case.fraction_threshold,
-                phase_stdev_threshold=case.phase_stdev_threshold,
-                id_mode=case.id_mode,
-                npoly=case.npoly,
-                bridge_mode=case.bridge_mode,
-            )
-            required = [
-                path.relative_to(plan.output_dir).as_posix()
-                for path in plan.expected_outputs
-            ]
-            (plan.output_dir / "completion.json").write_text(
-                json.dumps(
-                    {
-                        "status": "complete",
-                        "input_signature": runner_module._input_signature(plan),
-                        "required_products": required,
-                    }
-                ),
-                encoding="utf-8",
-            )
-
-            with patch.dict(os.environ, environment), redirect_stdout(terminal):
-                exit_code = module.main(["--config", str(config), "--case", "2024_154"])
+            with patch.object(module, "coreg_main", return_value=0) as invoked, patch.dict(
+                os.environ, environment
+            ), redirect_stdout(terminal):
+                exit_code = module.main(
+                    ["--config", str(config), "--case", "2024_154"]
+                )
 
             self.assertEqual(exit_code, 0)
-            self.assertEqual(terminal.getvalue().count('"status":"skipped"'), 2)
-            self.assertIn('"task":"PRE_S1_COREG"', terminal.getvalue())
+            invoked.assert_called_once()
 
     def test_unknown_key_and_invalid_enum_are_rejected(self) -> None:
         module = self._module("coreg_config")

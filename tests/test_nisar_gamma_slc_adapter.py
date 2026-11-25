@@ -132,7 +132,7 @@ class NisarGammaSlcAdapterTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "center_frequency"):
             self.adapter.finalize_scene(prepared, plan)
 
-    def test_complete_outputs_skip_and_partial_outputs_stop(self) -> None:
+    def test_complete_and_partial_outputs_are_both_planned_for_rerun(self) -> None:
         product = self.adapter.discover(self.case)[0]
         staging = self.root / "stage"
         staging.mkdir()
@@ -141,10 +141,9 @@ class NisarGammaSlcAdapterTests(unittest.TestCase):
         for output in first.outputs:
             output.destination.parent.mkdir(parents=True, exist_ok=True)
             output.destination.write_bytes(b"complete")
-        self.assertEqual(self.adapter.build_scene_plan(self.case, prepared).state, "skip")
+        self.assertEqual(self.adapter.build_scene_plan(self.case, prepared).state, "run")
         first.outputs[0].destination.unlink()
-        with self.assertRaisesRegex(ValueError, "incomplete output group"):
-            self.adapter.build_scene_plan(self.case, prepared)
+        self.assertEqual(self.adapter.build_scene_plan(self.case, prepared).state, "run")
 
     def test_nisar_adapter_rejects_missing_selected_dataset(self) -> None:
         missing = GammaRadarSlcCase(

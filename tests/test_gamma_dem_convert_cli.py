@@ -116,11 +116,11 @@ class GammaDemConvertCliTests(unittest.TestCase):
                 "geoid_path": None,
                 "gdal_bin_dir": None,
                 "log_path": case.log_path,
-                "overwrite": False,
+                "overwrite": True,
             },
         )
 
-    def test_complete_output_skips_and_partial_output_fails(self) -> None:
+    def test_complete_and_partial_outputs_are_both_recomputed(self) -> None:
         self.write_config()
         case = load_gamma_dem_convert_config(self.config)
         case.output_dem.write_bytes(b"\0" * 24)
@@ -130,15 +130,21 @@ class GammaDemConvertCliTests(unittest.TestCase):
         assert case.log_path is not None
         case.log_path.write_text("complete", encoding="utf-8")
         with patch(
-            "geodesy_preprocessing.dem.conversion.gamma.srtm2dem.convert_with_srtm2dem"
+            "geodesy_preprocessing.dem.conversion.gamma.srtm2dem.convert_with_srtm2dem",
+            return_value={"status": "complete"},
         ) as convert:
             result = run_gamma_dem_convert(case)
-        convert.assert_not_called()
-        self.assertEqual(result["status"], "skipped_complete")
+        convert.assert_called_once()
+        self.assertEqual(result["status"], "complete")
 
         case.log_path.unlink()
-        with self.assertRaisesRegex(RuntimeError, "incomplete"):
-            run_gamma_dem_convert(case)
+        with patch(
+            "geodesy_preprocessing.dem.conversion.gamma.srtm2dem.convert_with_srtm2dem",
+            return_value={"status": "complete"},
+        ) as partial_convert:
+            partial_result = run_gamma_dem_convert(case)
+        partial_convert.assert_called_once()
+        self.assertEqual(partial_result["status"], "complete")
 
     def test_rejects_symlink_output_without_touching_target(self) -> None:
         self.write_config()

@@ -18,7 +18,6 @@ from pathlib import Path
 
 from ..config import OtherSarSlcCase, validate_safe_date, validate_within_root
 from ..models import CommandSpec, ProductOutput, ScenePlan, SourceProduct
-from ..publication import classify_output_group
 from .base import PreparedProduct
 
 
@@ -124,8 +123,7 @@ class _CosmoAdapter:
             "import_hh",
             self._command_prefix(case) + (str(prepared.leader), date),
         )
-        state = "skip" if classify_output_group(outputs) == "complete" else "run"
-        return ScenePlan(prepared.product, (command,), outputs, state)
+        return ScenePlan(prepared.product, (command,), outputs, "run")
 
     def finalize_scene(self, prepared: PreparedProduct, plan: ScenePlan) -> None:
         """Normalize one converter-generated SLC/parameter pair inside staging."""

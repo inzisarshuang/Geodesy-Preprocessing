@@ -42,7 +42,7 @@ class GammaCropPublicationTests(unittest.TestCase):
         self.assertNotEqual(original, changed_pol)
         self.assertNotEqual(original, changed_kml)
 
-    def test_publication_rejects_and_preserves_existing_target(self) -> None:
+    def test_publication_replaces_existing_target(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             output = root / "result"
@@ -52,11 +52,11 @@ class GammaCropPublicationTests(unittest.TestCase):
             staging.mkdir()
             (staging / "new").write_text("new")
 
-            with self.assertRaisesRegex(FileExistsError, "appeared during execution"):
-                atomic_publish_crop(staging, output)
+            atomic_publish_crop(staging, output)
 
-            self.assertEqual((output / "old").read_text(), "old")
-            self.assertEqual((staging / "new").read_text(), "new")
+            self.assertFalse((output / "old").exists())
+            self.assertEqual((output / "new").read_text(), "new")
+            self.assertFalse(staging.exists())
 
     def test_failed_new_publication_keeps_staging_and_no_target(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -73,7 +73,7 @@ class GammaCropPublicationTests(unittest.TestCase):
                 return real_replace(source, destination)
 
             with mock.patch(
-                "geodesy_preprocessing.sar.rslc_subsetting.gamma.radar_grid.publication.os.replace",
+                "geodesy_preprocessing.common.publication.os.replace",
                 side_effect=fail_staging,
             ), self.assertRaisesRegex(OSError, "forced"):
                 atomic_publish_crop(staging, output)

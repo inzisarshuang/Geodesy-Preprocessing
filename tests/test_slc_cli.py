@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import io
-import json
 import os
 import tempfile
 import unittest
@@ -12,8 +11,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from geodesy_preprocessing.sar.slc_generation.gamma.tops.cli import main
-from geodesy_preprocessing.sar.slc_generation.gamma.tops.plan import build_slc_plan
-from geodesy_preprocessing.sar.slc_generation.gamma.tops.runner import _item_signature
+from geodesy_preprocessing.common.progress import emit_progress
 
 
 class TtyBuffer(io.StringIO):
@@ -25,6 +23,41 @@ class TtyBuffer(io.StringIO):
 
 class SlcCliTests(unittest.TestCase):
     """Preserve historical positional parsing and progress display modes."""
+
+    def setUp(self) -> None:
+        """Replace external GAMMA execution with deterministic progress events."""
+
+        def fake_run(plan, *, task, progress_sink):
+            item = plan.items[0].item
+            progress_sink(
+                emit_progress(
+                    event="item_started",
+                    task=task,
+                    item=item,
+                    index=1,
+                    total=1,
+                    stage="discover",
+                    status="running",
+                )
+            )
+            progress_sink(
+                emit_progress(
+                    event="item_finished",
+                    task=task,
+                    item=item,
+                    index=1,
+                    total=1,
+                    stage="publish",
+                    status="success",
+                )
+            )
+
+        patcher = patch(
+            "geodesy_preprocessing.sar.slc_generation.gamma.tops.cli.run_slc_batch",
+            side_effect=fake_run,
+        )
+        patcher.start()
+        self.addCleanup(patcher.stop)
 
     def _arguments(self, root: Path, *, workflow: int) -> list[str]:
         raw = root / "RAW"
@@ -39,26 +72,6 @@ class SlcCliTests(unittest.TestCase):
         burst.write_text("iw1_number_of_bursts: 1\n", encoding="ascii")
         source = raw / ("S1A_20240905.SAFE" if workflow else "S1A_20240905.zip")
         source.mkdir() if workflow else source.write_bytes(b"zip")
-        plan = build_slc_plan(
-            raw,
-            slc,
-            "-",
-            images,
-            burst,
-            4,
-            1,
-            workflow_flag=workflow,
-        )
-        (item_dir / "completion.json").write_text(
-            json.dumps(
-                {
-                    "status": "complete",
-                    "input_signature": _item_signature(plan, plan.items[0]),
-                    "required_products": ["20240905.vv.mli"],
-                }
-            ),
-            encoding="utf-8",
-        )
         return [str(raw), str(slc), "-", str(images), str(burst), "4", "1"]
 
     def test_seven_arguments_keep_zip_default_and_print_plain_progress(self) -> None:
@@ -70,7 +83,7 @@ class SlcCliTests(unittest.TestCase):
 
             self.assertEqual(exit_code, 0)
             self.assertIn("[PRE_GAMMA_SAR_TOPS_SLC] [1/1 100.0%]", terminal.getvalue())
-            self.assertIn("status=skipped", terminal.getvalue())
+            self.assertIn("status=success", terminal.getvalue())
 
     def test_eighth_zero_or_one_is_workflow_flag_and_ninth_overrides_it(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -92,7 +105,7 @@ class SlcCliTests(unittest.TestCase):
 
             lines = terminal.getvalue().splitlines()
             self.assertTrue(lines[0].startswith("@@GEODESY_PROGRESS "))
-            self.assertIn('"status":"skipped"', lines[-1])
+            self.assertIn('"status":"success"', lines[-1])
 
     def test_recorded_mode_uses_workflow_injected_task_name(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

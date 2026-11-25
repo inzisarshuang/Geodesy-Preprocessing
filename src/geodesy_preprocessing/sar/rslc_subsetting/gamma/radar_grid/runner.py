@@ -4,7 +4,7 @@
     用一个窗口逐日期、逐极化调用 SLC_copy，验证产品、生成快视图和清单，并原子发布。
 
 函数说明:
-    ``CropRunSummary`` 汇总运行结果；``run_crop_stack`` 执行或跳过完整裁剪栈。
+    ``CropRunSummary`` 汇总运行结果；``run_crop_stack`` 执行并替换完整裁剪栈。
 """
 
 from __future__ import annotations
@@ -20,7 +20,6 @@ from pathlib import Path
 from geodesy_preprocessing.common.case_layout import resolve_case_log_path
 from geodesy_preprocessing.common.figures import centralize_pre_figures
 from geodesy_preprocessing.common.progress import emit_progress
-from geodesy_preprocessing.common.reuse import ReuseState, classify_output
 from geodesy_preprocessing.sar.common.models import (
     RegisteredStackAsset,
     RegisteredStackManifest,
@@ -129,21 +128,7 @@ def run_crop_stack(
         raise TypeError("plan must be GammaRadarCropPlan")
     total = len(plan.assets)
     signature = crop_input_signature(plan)
-    reuse = classify_output(
-        plan.output_dir,
-        "completion.json",
-        signature,
-        lambda output, manifest: _validate_completion_products(output, manifest),
-    )
-    if reuse.state is ReuseState.COMPLETE:
-        return CropRunSummary(total, 0, total, 0, plan.output_dir)
-    if reuse.state is ReuseState.MISMATCH:
-        raise FileExistsError(
-            f"crop destination contains results from different inputs: {plan.output_dir}. "
-            "Delete it after inspection or choose a different output directory"
-        )
-    if reuse.state is ReuseState.INCOMPLETE:
-        raise FileExistsError(f"incomplete crop destination: {reuse.guidance}")
+    output_existed = plan.output_dir.exists()
     lock = plan.output_dir.parent / f".{plan.output_dir.name}.lock"
     plan.output_dir.parent.mkdir(parents=True, exist_ok=True)
     try:
@@ -334,6 +319,10 @@ def run_crop_stack(
             encoding="utf-8",
         )
         _validate_source_snapshot(snapshot)
+        if not output_existed and plan.output_dir.exists():
+            raise FileExistsError(
+                f"crop destination appeared during execution: {plan.output_dir}"
+            )
         atomic_publish_crop(staging, plan.output_dir)
         staging = None
         centralize_pre_figures(
@@ -368,24 +357,6 @@ def run_crop_stack(
         if staging is not None:
             shutil.rmtree(staging, ignore_errors=True)
         lock.unlink(missing_ok=True)
-
-
-def _validate_completion_products(
-    output: Path, manifest: dict[str, object]
-) -> bool:
-    products = manifest.get("required_products")
-    if not isinstance(products, list) or not products:
-        return False
-    if not all(
-        isinstance(value, str)
-        and ".." not in Path(value).parts
-        and (output / value).is_file()
-        and (output / value).stat().st_size > 0
-        for value in products
-    ):
-        return False
-    read_stack_manifest(output / "registered_stack.json")
-    return True
 
 
 __all__ = ["CropRunSummary", "run_crop_stack"]
