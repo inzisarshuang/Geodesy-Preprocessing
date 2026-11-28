@@ -48,11 +48,11 @@ geodesy-pre-gamma-coreg-grid --config PROJECT/config/preprocess/gamma_coreg_grid
 ## 裁剪和交接
 
 ```bash
-geodesy-pre-gamma-rslc-crop --config PROJECT/config/preprocess/gamma_rslc_crop.cfg --case main --plan-only
+geodesy-pre-gamma-rslc-crop --config PROJECT/config/preprocess/gamma_rslc_crop.cfg --case main --dry-run
 geodesy-pre-gamma-rslc-crop --config PROJECT/config/preprocess/gamma_rslc_crop.cfg --case main
 ```
 
-`--plan-only` 可在目标裁剪目录尚有旧文件或不完整内容时检查范围，不会触碰正式裁剪
+`--dry-run` 可在目标裁剪目录尚有旧文件或不完整内容时检查范围，不会触碰正式裁剪
 输出。先确认 KML 缓冲范围没有被缩减且 lookup 覆盖足够，再正式运行。正式运行
 每次都重新生成并验证全栈，然后原子替换 `output_dir`；失败时旧结果保持不变。最终
 `registered_stack.json` 是交给 `Geodesy-Analysis` 的入口。日志位于项目 `LOG/PRE/`

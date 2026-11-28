@@ -44,7 +44,7 @@ geodesy-pre-gamma-coreg-grid --config PROJECT/config/preprocess/gamma_coreg_grid
 ## 按 KML 缓冲范围裁剪
 
 ```bash
-geodesy-pre-gamma-rslc-crop --config PROJECT/config/preprocess/gamma_rslc_crop.cfg --case nisar_la --plan-only
+geodesy-pre-gamma-rslc-crop --config PROJECT/config/preprocess/gamma_rslc_crop.cfg --case nisar_la --dry-run
 geodesy-pre-gamma-rslc-crop --config PROJECT/config/preprocess/gamma_rslc_crop.cfg --case nisar_la
 ```
 

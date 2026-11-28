@@ -184,8 +184,8 @@ mkdir -p "$PROJECT/config/download" "$PROJECT/config/preprocess" "$PROJECT/TOPOG
 cp config_examples/download/opentopo_dem_download.cfg "$PROJECT/config/download/"
 ```
 
-再复制所选路线需要的 CFG。模板顶部给出正式命令和示例，参数块标明哪些内容必填、
-经常修改、通常不改或需要谨慎修改。
+再复制所选路线需要的 CFG。模板顶部给出正式命令和示例。参数旁的注释说明
+填写要求，并列出适用的可选值、默认值和生效条件。
 
 OpenTopography 模板默认在下载后执行 GAMMA `srtm2dem`；只需要公共 GeoTIFF 时将
 `run_srtm2dem=false`。新项目只维护这一份数据集优先的 DEM 配置模板。
@@ -207,7 +207,8 @@ geodesy-pre-sar-sentinel1-acquire \
 ```
 
 完整 SLC 不需要 BURST 合并；BURST 下载后增加 `--merge`。SLC 生成、参考几何、配准和
-裁剪的后续命令见对应流程文档。裁剪阶段应先执行 `--plan-only` 检查 KML 缓冲范围。
+裁剪的后续命令见对应流程文档。裁剪阶段可用 `--dry-run` 检查 KML 缓冲范围，
+检查图和窗口写入 `<output_dir>.plan`。
 
 ## 6. Data And Output Behavior / 数据与输出行为
 

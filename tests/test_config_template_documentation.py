@@ -28,16 +28,14 @@ class ConfigTemplateDocumentationTests(unittest.TestCase):
             "日志",
             "完成判断",
             "重新运行",
-            "【必填】",
-            "【常改】",
-            "【通常不改】",
-            "【谨慎修改】",
             "凭据安全",
         )
         self.assertTrue(TEMPLATES)
         problems: list[str] = []
         for template in TEMPLATES:
             contents = template.read_text(encoding="utf-8")
+            if "【" in contents or "】" in contents:
+                problems.append(f"{template.name}: use plain sentences for parameter notes")
             for marker in required:
                 if marker not in contents:
                     problems.append(f"{template.name}: missing {marker}")
@@ -68,6 +66,46 @@ class ConfigTemplateDocumentationTests(unittest.TestCase):
                     continue
                 problems.append(f"{template.name}: secret-like assignment {key}")
         self.assertEqual(problems, [], "\n".join(problems))
+
+    def test_choice_comments_are_next_to_the_settings_they_document(self) -> None:
+        boolean_values = ("true", "yes", "on", "1", "false", "no", "off", "0")
+        expected = (
+            ("nisar_gslc_download.cfg", "product_type", ("RSLC", "GSLC")),
+            ("nisar_rslc_download.cfg", "band", ("L", "S")),
+            (
+                "opentopo_dem_download.cfg",
+                "dem_type",
+                ("COP90", "SRTM_GL1_ELLIP", "GEBCOSubIceTopo"),
+            ),
+            ("opentopo_dem_download.cfg", "output_format", ("GTiff", "AAIGrid", "HFA")),
+            ("opentopo_dem_download.cfg", "run_srtm2dem", (*boolean_values, "y", "n")),
+            ("sentinel1_download.cfg", "keep_burst_files", boolean_values),
+            ("gamma_coreg_grid.cfg", "refine_oversampling", ("1", "2", "4", "offset_field")),
+            (
+                "gamma_coreg_tops.cfg",
+                "id_mode",
+                ("date", "date_time", "date_pol", "date_time_pol"),
+            ),
+            ("gamma_coreg_tops.cfg", "bridge_mode", ("none", "yearly", "adjacent", "mix")),
+            ("gamma_geo_ref_grid.cfg", "range_offset_estimates", ("auto", "-")),
+            ("gamma_geo_ref_tops.cfg", "reference_flag", ("0", "1")),
+            ("gamma_rslc_crop.cfg", "require_full_aoi_coverage", boolean_values),
+            ("gamma_slc_grid.cfg", "adapter.noise_subtraction", ("true", "false", "nisar")),
+            ("gamma_slc_tops.cfg", "workflow", ("safe", "zip", "1", "0")),
+            ("nisar_gslc_stack.cfg", "polarizations", ("HH", "HV", "VH", "VV")),
+        )
+        contents = {
+            template.name: template.read_text(encoding="utf-8") for template in TEMPLATES
+        }
+        for filename, setting, choices in expected:
+            pattern = rf"(?m)^((?:#[^\n]*\n)*){re.escape(setting)}[ \t]*="
+            matches = re.findall(pattern, contents[filename])
+            with self.subTest(filename=filename, setting=setting):
+                self.assertTrue(matches, f"Missing assignment for {setting}")
+                for comment in matches:
+                    for choice in choices:
+                        token = rf"(?<![A-Za-z0-9_]){re.escape(choice)}(?![A-Za-z0-9_])"
+                        self.assertRegex(comment, token)
 
     def test_gamma_radar_geo_ref_template_documents_its_operational_identity(self) -> None:
         contents = (ROOT / "config_examples/preprocess/gamma_geo_ref_grid.cfg").read_text(

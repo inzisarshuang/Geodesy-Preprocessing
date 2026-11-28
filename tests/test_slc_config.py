@@ -126,6 +126,29 @@ class SlcConfigTests(unittest.TestCase):
                 select_slc_case(cases, "missing")
             self.assertEqual(select_slc_case(cases, "2026_001").name, "2026_001")
 
+    def test_workflow_and_burst_coverage_aliases_resolve_to_runtime_flags(self) -> None:
+        choices = (
+            ("SaFe", "TrUe", 1, True),
+            ("1", "YeS", 1, True),
+            ("1", "1", 1, True),
+            ("ZiP", "FaLsE", 0, False),
+            ("0", "No", 0, False),
+            ("0", "0", 0, False),
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            config = self._project(Path(directory), two_cases=False)
+            template = config.read_text(encoding="utf-8")
+            for workflow, coverage, workflow_flag, coverage_enabled in choices:
+                with self.subTest(workflow=workflow, coverage=coverage):
+                    contents = template.replace("workflow = safe", f"workflow = {workflow}")
+                    contents = contents.replace(
+                        "burst_coverage_plot = false", f"burst_coverage_plot = {coverage}"
+                    )
+                    config.write_text(contents, encoding="utf-8")
+                    (case,) = load_slc_config(config)
+                    self.assertEqual(case.workflow_flag, workflow_flag)
+                    self.assertIs(case.burst_coverage_plot, coverage_enabled)
+
     def test_selected_case_uses_method_root_defaults_without_validating_other_cases(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             project = Path(directory) / "study"

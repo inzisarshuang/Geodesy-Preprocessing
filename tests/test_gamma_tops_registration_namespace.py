@@ -96,10 +96,6 @@ class GammaTopsRegistrationNamespaceTests(unittest.TestCase):
             "reference",
             "range_looks",
             "azimuth_looks",
-            "【必填】",
-            "【常改】",
-            "【通常不改】",
-            "【谨慎修改】",
         )
         for name in templates:
             with self.subTest(template=name):

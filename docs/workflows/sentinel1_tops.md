@@ -48,7 +48,7 @@ geodesy-pre-gamma-coreg-tops --config PROJECT/config/preprocess/gamma_coreg_tops
 ## 按研究区裁剪
 
 ```bash
-geodesy-pre-gamma-rslc-crop --config PROJECT/config/preprocess/gamma_rslc_crop.cfg --case main --plan-only
+geodesy-pre-gamma-rslc-crop --config PROJECT/config/preprocess/gamma_rslc_crop.cfg --case main --dry-run
 geodesy-pre-gamma-rslc-crop --config PROJECT/config/preprocess/gamma_rslc_crop.cfg --case main
 ```
 
